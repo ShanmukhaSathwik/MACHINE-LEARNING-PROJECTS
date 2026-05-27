@@ -1,0 +1,29 @@
+# Data files (too large for Git)
+data/
+*.mp4
+*.wav
+*.tar.gz
+*.zip
+*.csv
+
+# Model weights
+*.h5
+*.weights
+models/
+features/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Outputs
+*.png
+results_table.csv
