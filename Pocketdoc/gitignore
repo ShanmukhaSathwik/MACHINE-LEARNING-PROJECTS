@@ -1,0 +1,23 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data / embeddings (too large for Git)
+*.npy
+*.index
+*.csv
+data/
+
+# OS
+.DS_Store
+Thumbs.db

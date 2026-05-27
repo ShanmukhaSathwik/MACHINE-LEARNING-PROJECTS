@@ -1,0 +1,7 @@
+sentence-transformers
+faiss-cpu
+groq
+datasets
+spacy
+python-dotenv
+numpy
