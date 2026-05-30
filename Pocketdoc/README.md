@@ -1,43 +1,30 @@
-# 🩺 PocketDoc — AI-Powered Medical Triage Assistant
+# 🏥 PocketDoc — AI-Powered Medical Triage Assistant
 
-> **Your AI-powered second opinion, anytime. Fast. Clear. Reliable.**
+> Your AI-powered second opinion, anytime. Fast. Clear. Reliable.
 
-PocketDoc is an intelligent medical triage system that listens to your symptoms, asks smart follow-up questions, and generates a structured clinical report — all powered by LLaMA 3.3 via Groq and a RAG pipeline built on real medical Q&A data.
-
----
-
-## 🚀 Features
-
-- **Symptom Analysis** — Describes symptoms in natural language; PocketDoc understands them
-- **Adaptive Triage** — Classifies severity as CRITICAL, MODERATE, or MILD
-- **Smart Follow-up Questions** — Asks 2–4 targeted questions based on severity level
-- **Dynamic Risk Re-evaluation** — Updates severity in real-time as answers come in
-- **RAG Pipeline** — Retrieves relevant medical context from MedQuAD (54,000+ Q&A pairs)
-- **Structured Clinical Report** — Outputs symptoms summary, red flags, possible conditions, recommended tests, and follow-up care
-- **Input Validation** — Filters out non-medical inputs automatically
+PocketDoc is a medical AI that doesn't just answer — it thinks, asks, and diagnoses. Built as part of SSAI's 48-hour skills assessment.
 
 ---
 
-## 🏗️ Architecture
+## 🔍 What it does
+
+1. You describe your symptoms
+2. It asks adaptive follow-up questions, the way a doctor actually would
+3. It generates a structured clinical report you can understand
+
+---
+
+## 🧠 How it works
 
 ```
-User Symptoms
-     │
-     ▼
-Input Validation (LLaMA 3.3)
-     │
-     ▼
-Severity Classification (CRITICAL / MODERATE / MILD)
-     │
-     ▼
-Adaptive Follow-up Questions (2–4 based on severity)
-     │
-     ▼
-RAG Retrieval — FAISS + SentenceTransformers (MedQuAD)
-     │
-     ▼
-Structured Clinical Report (LLaMA 3.3 via Groq)
+User Input → Severity Classification → Adaptive Questioning
+→ RAG Retrieval (FAISS) → Clinical Report Generation
 ```
+
+- **Severity Classification** — LLaMA 3.3 classifies symptoms as CRITICAL / MODERATE / MILD
+- **Adaptive Questions** — dynamically generated based on symptoms and previous answers
+- **RAG Pipeline** — FAISS vector search over MedQuAD medical dataset
+- **Report Generation** — structured 6-section clinical report
 
 ---
 
@@ -45,70 +32,71 @@ Structured Clinical Report (LLaMA 3.3 via Groq)
 
 | Component | Technology |
 |---|---|
-| LLM | LLaMA 3.3 70B (via Groq) |
-| Embeddings | `all-MiniLM-L6-v2` (SentenceTransformers) |
-| Vector Store | FAISS |
-| Dataset | MedQuAD (HuggingFace `lavita/MedQuAD`) |
-| NLP | spaCy `en_core_web_sm` |
-| Runtime | Google Colab |
+| LLM | LLaMA 3.3 70B via Groq |
+| Vector Search | FAISS |
+| Embeddings | SentenceTransformers (all-MiniLM-L6-v2) |
+| NLP | spaCy |
+| Dataset | MedQuAD (HuggingFace) |
+| UI | Streamlit |
+| Language | Python |
 
 ---
 
-## ⚙️ Setup & Usage
+## 🚀 Running the Streamlit App
 
-### 1. Clone the repo
+### Step 1 — Clone the repo
 ```bash
-git clone https://github.com/YOUR_USERNAME/pocketdoc.git
+git clone https://github.com/ShanmukhaSathwik/MACHINE-LEARNING-PROJECTS.git
+cd MACHINE-LEARNING-PROJECTS/Pocketdoc
 ```
 
-### 2. Create a `.env` file
+### Step 2 — Install dependencies
 ```bash
-GROQ_API_KEY=your_groq_api_key_here
+pip install -r requirements.txt
 ```
-Get your free API key at [console.groq.com](https://console.groq.com)
 
-### 3. Open in Google Colab
-Upload `PocketDoc.ipynb` to Colab, mount your Google Drive, and run the cells in order.
-
-### 4. Run PocketDoc
-```python
-pocketdoc()
+### Step 3 — Set up your API key
+```bash
+cp .env.example .env
 ```
+Open `.env` and replace `your_groq_api_key_here` with your actual key from [console.groq.com](https://console.groq.com)
+
+### Step 4 — Generate embeddings
+Run all cells in `PocketDoc.ipynb` first to generate the `pocketdoc_data/` folder with embeddings locally.
+
+### Step 5 — Run the app
+```bash
+python -m streamlit run app.py
+```
+
+Opens at `http://localhost:8501`
 
 ---
 
-## 📊 Evaluation
+## 📊 Evaluation Results
 
-Three built-in tests are included (Cell 9):
-
-| Test | What it checks |
+| Test | Result |
 |---|---|
-| Severity Consistency | LLM returns same severity across 3 runs |
-| Retrieval Relevance | FAISS retrieves medically relevant chunks |
-| Response Time | Full pipeline end-to-end latency |
+| Severity Consistency | Consistent across 3 runs |
+| Retrieval Relevance | 4/5 chunks relevant |
+| Pipeline Response Time | ~3–5 seconds |
+
+---
+
+## 🔮 What's Next
+
+- **Agentic RAG** — agents that plan and retrieve across multiple steps dynamically
+- **Multi-modal input** — describe symptoms by voice or upload images like rashes / X-rays
+- **Fine-tuned medical LLM** — domain-specific reasoning instead of a general model
 
 ---
 
 ## ⚠️ Disclaimer
 
-PocketDoc is **not a substitute for professional medical advice**. It is a learning project and should not be used for real clinical decisions.
+PocketDoc is not a substitute for professional medical advice. Always consult a qualified healthcare provider for diagnosis and treatment.
 
 ---
 
-## 📁 Project Structure
+## 👤 Author
 
-```
-pocketdoc/
-├── PocketDoc.ipynb     # Main notebook
-├── .env.example        # API key template
-├── requirements.txt    # Python dependencies
-├── .gitignore          # Excludes secrets and data files
-└── README.md           # You are here
-```
-
----
-
-## 🙋 Author
-
-Built with ❤️ as an AI/ML learning project.  
-Feel free to fork, star ⭐, or raise an issue!
+**ShanmukhaSathwik** — [GitHub](https://github.com/ShanmukhaSathwik/MACHINE-LEARNING-PROJECTS)
