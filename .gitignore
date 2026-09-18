@@ -1,0 +1,15 @@
+# Raw audio - download RAVDESS separately
+Emotion_Aware_Conversational_Voice_Agent/Code/data/raw/
+*.wav
+
+# Model + data artifacts
+checkpoints/
+memories.json
+vector_store/
+
+# Secrets - never commit API keys
+.env
+
+# Python
+__pycache__/
+*.pyc
