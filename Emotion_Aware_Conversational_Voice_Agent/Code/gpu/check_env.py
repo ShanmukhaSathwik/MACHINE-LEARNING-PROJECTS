@@ -29,6 +29,20 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 OUT_DIR = HERE / "outputs"
+ENV_FILE = HERE.parent / ".env"  # Code/.env (gitignored)
+
+
+def load_env_file():
+    """Load Code/.env (e.g. HF_TOKEN) if python-dotenv is installed.
+    Variables already set in the shell win (override=False)."""
+    try:
+        from dotenv import load_dotenv
+    except Exception:  # noqa: BLE001
+        return "python-dotenv not installed"
+    if not ENV_FILE.exists():
+        return "no .env file"
+    load_dotenv(ENV_FILE, override=False)
+    return "loaded"
 MIN_FREE_DISK_GB = 40
 
 LIBRARIES = [
@@ -119,15 +133,19 @@ def disk_info():
 
 
 def hf_info():
+    source = "shell" if os.environ.get("HF_TOKEN") else None
+    env_status = load_env_file()
+    if source is None and os.environ.get("HF_TOKEN"):
+        source = ".env"
     try:
         from huggingface_hub import whoami
     except Exception:  # noqa: BLE001
         return {"logged_in": False, "user": None, "note": "huggingface_hub not installed"}
     try:
         me = whoami()
-        return {"logged_in": True, "user": me.get("name")}
+        return {"logged_in": True, "user": me.get("name"), "token_source": source, "env_file": env_status}
     except Exception:  # noqa: BLE001
-        return {"logged_in": False, "user": None}
+        return {"logged_in": False, "user": None, "token_source": source, "env_file": env_status}
 
 
 def recommendation(t):
@@ -184,7 +202,8 @@ def print_report(r):
         print(f"WARNING: {d['warning']}")
 
     h = r["huggingface"]
-    print(f"Hugging Face   : {'logged in as ' + h['user'] if h['logged_in'] else 'not logged in'}")
+    print(f"Hugging Face   : {'logged in as ' + h['user'] if h['logged_in'] else 'not logged in'}"
+          f"  (token from: {h.get('token_source') or 'none'}; .env: {h.get('env_file', '-')})")
 
     print(line)
     print(f"RECOMMENDATION : {r['recommendation']['text']}")
