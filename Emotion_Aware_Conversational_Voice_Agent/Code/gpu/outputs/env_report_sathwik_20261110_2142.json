@@ -1,0 +1,43 @@
+{
+  "timestamp": "2026-11-10T21:42:38",
+  "system": {
+    "computer": "sathwik",
+    "os": "Windows",
+    "os_version": "10.0.26200",
+    "os_release": "11",
+    "python": "3.12.10",
+    "python_executable": "F:\\projects\\Final_project\\Emotion_Aware_Conversational_Voice_Agent\\Code\\.venv312\\Scripts\\python.exe"
+  },
+  "torch": {
+    "torch": "2.15.0+cpu",
+    "torch_cuda_build": null,
+    "cuda_available": false,
+    "gpus": [],
+    "note": "This torch build is CPU-only. On a GPU machine, install a CUDA build of torch."
+  },
+  "libraries": {
+    "transformers": "not installed",
+    "peft": "not installed",
+    "accelerate": "not installed",
+    "datasets": "not installed",
+    "huggingface_hub": "not installed",
+    "soundfile": "0.14.0",
+    "librosa": "1.0.0",
+    "bitsandbytes": "not installed"
+  },
+  "disk": {
+    "path": "F:\\",
+    "total_gb": 14.65,
+    "free_gb": 6.75,
+    "warning": "Less than 40 GB free"
+  },
+  "huggingface": {
+    "logged_in": false,
+    "user": null,
+    "note": "huggingface_hub not installed"
+  },
+  "recommendation": {
+    "tier": "cpu",
+    "text": "No CUDA GPU - CPU only (fine for smoke tests)"
+  }
+}

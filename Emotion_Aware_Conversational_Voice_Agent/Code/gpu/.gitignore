@@ -1,0 +1,4 @@
+# GPU outputs (checkpoints, logs, audio) are large: keep them out of git.
+# Results go to the private Hugging Face repo instead.
+outputs/*
+!outputs/env_report_*.json
