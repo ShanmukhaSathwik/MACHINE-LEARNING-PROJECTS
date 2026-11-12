@@ -154,9 +154,26 @@ if ($rav -eq 1440 -and $crema -eq 7442) { "OK" } else { "MISSING FILES: copy aga
 | 14 to 22 GB (a "16 GB" card reports ~15-16) | `gpu_16gb` |
 | 22 GB or more (a "24 GB" card reports ~23.5-24) | `gpu_24gb` |
 
+**First, a 2-minute sanity run** (20 weight updates on 200 training clips, 50 validation clips):
+```powershell
+python gpu\finetune_ser.py --preset gpu_16gb --max-steps 20 --max-train-clips 200 --max-val-clips 50
+```
+Check in the output:
+- the `device` line shows `cuda` and `mixed precision: bfloat16` (or `float16` on older GPUs), not `off`;
+- the epoch line prints `peak VRAM ... GB`;
+- `new best val macro-F1 ... -> saved ...\best` appears, and the run ends with `SERModel loads best/ as model_name: OK`.
+
+If it fails inside the data loader (worker / pickling / "DataLoader worker exited" errors), rerun with
+`--num-workers 0`. If it runs out of GPU memory (`CUDA out of memory`), use the next smaller preset
+(`gpu_24gb` -> `gpu_16gb` -> `gpu_12gb`). The run folder ends in `_sanity`, so it can't be mistaken for a real run;
+its test numbers mean nothing.
+
+**Then the real run:**
 ```powershell
 python gpu\finetune_ser.py --preset gpu_16gb
 ```
+If the sanity run needed `--num-workers 0`, add it here too (the real run then gets `_sanity` in its name as well;
+or set `num_workers: 0` for that preset in `gpu\gpu_config.yaml`).
 - Each run gets its own folder `gpu\outputs\ser_finetune\<preset>_<date_time>\` with `metrics.csv`
   (one line per epoch), `best\` (best checkpoint by validation macro-F1) and `last.pt` (for resuming).
   Budget about 5 GB of disk per hubert-large run.

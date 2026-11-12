@@ -26,6 +26,7 @@ last.pt holds model + optimizer + scheduler state for --resume (about 3x the mod
 
 Usage (works from any folder):
     python gpu/finetune_ser.py --preset smoke_cpu                 # CPU smoke test: 2 steps, checks the loop only
+    python gpu/finetune_ser.py --preset gpu_16gb --max-steps 20 --max-train-clips 200 --max-val-clips 50   # GPU sanity run
     python gpu/finetune_ser.py --preset gpu_16gb
     python gpu/finetune_ser.py --resume gpu/outputs/ser_finetune/gpu_16gb_20261112_1400
 """
@@ -242,6 +243,32 @@ def _free_path(path: Path) -> Path:
     return path.with_name(f"{path.name}_{i}")
 
 
+OVERRIDES = {   # CLI flag (argparse dest) -> finetune config key; for a quick GPU sanity run
+    "max_steps": "max_steps",
+    "max_train_clips": "max_train_clips",
+    "max_val_clips": "max_val_clips",
+    "num_workers": "num_workers",
+}
+SANITY_SUFFIX = "_sanity"
+
+
+def apply_overrides(ft, args) -> list:
+    """Apply the CLI overrides that were given to the finetune config (in place).
+    Returns [(key, old value, new value)] for every override applied."""
+    applied = []
+    for dest, key in OVERRIDES.items():
+        value = getattr(args, dest, None)
+        if value is not None:
+            applied.append((key, ft.get(key), value))
+            ft[key] = value
+    return applied
+
+
+def make_run_id(preset, when, sanity=False) -> str:
+    """<preset>_<YYYYmmdd_HHMM>, plus "_sanity" for runs with CLI overrides."""
+    return f"{preset}_{when:%Y%m%d_%H%M}" + (SANITY_SUFFIX if sanity else "")
+
+
 def _git_commit():
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=code_path(""), capture_output=True,
@@ -286,12 +313,16 @@ def run(args):
         cfg, device, dtype = setup(saved["preset"])
         cfg["finetune"] = saved["finetune"]
         run_id = run_dir.name
+        overrides = []
     else:
         cfg, device, dtype = setup(args.preset)
-        run_id = f"{cfg['preset']}_{datetime.datetime.now():%Y%m%d_%H%M}"
+        overrides = apply_overrides(cfg["finetune"], args)
+        run_id = make_run_id(cfg["preset"], datetime.datetime.now(), sanity=bool(overrides))
         run_dir = _free_path(code_path(cfg["finetune"]["output_dir"]) / run_id)
         run_id = run_dir.name
         run_dir.mkdir(parents=True)
+    for key, old, new in overrides:
+        print(f"override   : finetune.{key} {old} -> {new}   (CLI; run marked {SANITY_SUFFIX})")
     ft = cfg["finetune"]
     seed = cfg["seed"]
     best_dir = run_dir / "best"
@@ -380,6 +411,7 @@ def run(args):
     else:
         used = {**cfg, "run_id": run_id, "device": device, "dtype": str(dtype).replace("torch.", ""),
                 "label_ids": class_to_id, "git_commit": _git_commit(),
+                "cli_overrides": {k: {"config": old, "used": new} for k, old, new in overrides},
                 "n_clips": {s: len(splits[s]) for s in SPLITS}}
         (run_dir / "config_used.yaml").write_text(yaml.safe_dump(used, sort_keys=False), encoding="utf-8")
 
@@ -518,7 +550,14 @@ def main():
     parser = argparse.ArgumentParser(description="Fine-tune a pretrained speech emotion model on ser_4class.csv.")
     parser.add_argument("--preset", help="preset name (default: $AGENT_PRESET, else smoke_cpu)")
     parser.add_argument("--resume", metavar="RUN_DIR", help="continue a run from its last.pt (same folder, same settings)")
+    sanity = parser.add_argument_group("overrides for one quick sanity run (run_id gets the suffix _sanity)")
+    sanity.add_argument("--max-steps", type=int, metavar="N", help="stop after N weight updates")
+    sanity.add_argument("--max-train-clips", type=int, metavar="N", help="use N random training clips")
+    sanity.add_argument("--max-val-clips", type=int, metavar="N", help="use N random validation clips")
+    sanity.add_argument("--num-workers", type=int, metavar="N", help="data-loading worker processes (0 = main process)")
     args = parser.parse_args()
+    if args.resume and any(getattr(args, d) is not None for d in OVERRIDES):
+        parser.error("overrides can't be combined with --resume (a resumed run keeps its saved settings)")
     try:
         return run(args)
     except (ValueError, FileNotFoundError) as e:

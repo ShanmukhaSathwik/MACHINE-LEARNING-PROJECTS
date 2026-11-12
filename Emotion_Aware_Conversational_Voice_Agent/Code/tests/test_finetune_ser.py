@@ -42,6 +42,28 @@ def test_label_ids_follow_model_id2label():
         ft.label_ids({0: "neu", 1: "hap", 2: "ang", 3: "calm"})      # unknown label
 
 
+def test_cli_overrides_and_sanity_run_id():
+    import datetime
+    from types import SimpleNamespace
+
+    cfg = load_config("gpu_16gb")
+    args = SimpleNamespace(max_steps=20, max_train_clips=200, max_val_clips=50, num_workers=0)
+    applied = ft.apply_overrides(cfg["finetune"], args)
+    assert {k: new for k, _, new in applied} == {"max_steps": 20, "max_train_clips": 200,
+                                                 "max_val_clips": 50, "num_workers": 0}
+    assert dict((k, old) for k, old, _ in applied)["num_workers"] == 4          # old value reported
+    f = cfg["finetune"]
+    assert (f["max_steps"], f["max_train_clips"], f["max_val_clips"], f["num_workers"]) == (20, 200, 50, 0)
+    assert f["batch_size"] == 8                                                   # untouched keys stay
+    when = datetime.datetime(2026, 11, 12, 14, 5)
+    assert ft.make_run_id(cfg["preset"], when, sanity=bool(applied)) == "gpu_16gb_20261112_1405_sanity"
+    # no flags given -> nothing changes and the run id has no suffix
+    plain = load_config("gpu_16gb")
+    none = SimpleNamespace(max_steps=None, max_train_clips=None, max_val_clips=None, num_workers=None)
+    assert ft.apply_overrides(plain["finetune"], none) == []
+    assert ft.make_run_id("gpu_16gb", when, sanity=False) == "gpu_16gb_20261112_1405"
+
+
 def test_class_weights():
     ids = [0] * 10 + [1] * 5 + [2] * 20 + [3] * 1
     w = ft.class_weights(ids, 4)
