@@ -32,6 +32,10 @@ base:
     temperature: 0.7     # randomness of word choice: lower = more predictable, higher = more varied
     top_p: 0.9           # only sample from the most likely words that together cover 90% of the probability
     thinking: false      # turn off the model's hidden "thinking" step, which adds delay a live voice reply cannot afford
+    history_turns: 6     # earlier exchanges (one user turn + one agent reply each) sent along with the new turn
+    fallback: ["gemini", "template"]  # if the main backend fails, try these in order; the fixed template reply always works
+    allow_fallback: true # set false for evaluation runs, so one pinned model answers every turn (a failure stops the run instead)
+    extract_max_new_tokens: 60  # longest answer when the model extracts a fact to remember (one short sentence or NONE)
 
   # Speech recognition (turns the user's audio into text).
   asr:
@@ -124,8 +128,10 @@ presets:
         - "superb/wav2vec2-base-superb-er"
     llm:
       backend: "qwen"     # run a Qwen model locally on the GPU instead of the cloud API
-      model: null         # pinned in step 7
+      model: "Qwen/Qwen3-8B" # 8-billion-parameter Qwen3 chat model; about 6 GB of VRAM in 4 bits
       quantization: "4bit" # load the model weights compressed to 4 bits (bitsandbytes) to fit in VRAM
+      top_p: 0.8          # Qwen3 model card's recommended non-thinking settings (with top_k 20); temperature stays 0.7
+      top_k: 20           # only sample from the 20 most likely next words
     tts:
       backend: "csm"                         # Sesame CSM text-to-speech: expressive, conversational voice
       model: "sesame/csm-1b"                 # the 1-billion-parameter CSM checkpoint on Hugging Face
@@ -151,8 +157,10 @@ presets:
         - "superb/wav2vec2-base-superb-er"
     llm:
       backend: "qwen"     # local Qwen on the GPU
-      model: null         # pinned in step 7
+      model: "Qwen/Qwen3-8B" # same as gpu_12gb
       quantization: "4bit" # 4-bit weights; may be relaxed later if VRAM allows
+      top_p: 0.8          # Qwen3 model card's recommended non-thinking settings (with top_k 20); temperature stays 0.7
+      top_k: 20           # same as gpu_12gb
     tts:
       backend: "csm"                         # Sesame CSM text-to-speech
       model: "sesame/csm-1b"                 # same as gpu_12gb
@@ -177,8 +185,10 @@ presets:
         - "superb/wav2vec2-base-superb-er"
     llm:
       backend: "qwen"     # local Qwen on the GPU
-      model: null         # pinned in step 7
+      model: "Qwen/Qwen3-8B" # same as gpu_12gb
       quantization: "4bit" # 4-bit weights; may be relaxed later if VRAM allows
+      top_p: 0.8          # Qwen3 model card's recommended non-thinking settings (with top_k 20); temperature stays 0.7
+      top_k: 20           # same as gpu_12gb
     tts:
       backend: "csm"                         # Sesame CSM text-to-speech
       model: "sesame/csm-1b"                 # same as gpu_12gb

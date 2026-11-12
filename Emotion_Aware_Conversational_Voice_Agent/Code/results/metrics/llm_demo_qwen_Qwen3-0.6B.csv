@@ -1,0 +1,6 @@
+kind,strategy,user_text,reply,n_sentences,backend,model,fell_back,errors,first_sentence_seconds,seconds
+reply,VALIDATE,I bombed my practice test today and I feel like I'm just not good enough.,"I'm sorry you're feeling that way. It's okay to feel that way, and you're not alone. Let me know if you want to talk about it.",3,qwen,Qwen/Qwen3-0.6B,False,,4.594,10.165
+reply,CALM,Everything is piling up at once and I can't even think straight right now.,I can feel the weight of everything pressing on me right now. Let me help you take a deep breath.,2,qwen,Qwen/Qwen3-0.6B,False,,5.209,7.116
+reply,ENCOURAGE,I finally finished my whole project a day early!,Great job! You did it!,1,qwen,Qwen/Qwen3-0.6B,False,,3.712,4.415
+reply,NEUTRAL,I'm just walking home from class right now.,I'm walking home. Let me know if there's anything I can help with.,2,qwen,Qwen/Qwen3-0.6B,False,,3.248,6.079
+extract,,My sister's wedding is next month and I'm nervous,The user is nervous about their sister's wedding.,,qwen,Qwen/Qwen3-0.6B,False,,,4.844
