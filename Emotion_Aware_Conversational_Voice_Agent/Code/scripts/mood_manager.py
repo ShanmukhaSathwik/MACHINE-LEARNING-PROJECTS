@@ -9,6 +9,30 @@ Goes in src/mood/mood_manager.py
 TAU_CONF = 0.72
 CHECK_IN_AFTER = 2   # consecutive abstains in a non-DEFAULT mood before raising check_in
 
+# A2.3 (P3, code decides, LLM speaks): the mood mode picks a response strategy; the LLM only phrases it.
+# v1 produces DEFAULT / EMPATHETIC only; CALMING / POSITIVE_ENCOURAGING are kept for MoodManager v2.
+STRATEGY_FOR_MODE = {
+    "DEFAULT": "NEUTRAL",
+    "EMPATHETIC": "VALIDATE",
+    "CALMING": "CALM",
+    "POSITIVE_ENCOURAGING": "ENCOURAGE",
+}
+# TTS style tags come from the strategy only, never from the per-turn emotion prediction (P6).
+TTS_TAGS = {
+    "VALIDATE": ["<sigh>", "<softly>"],
+    "CALM": ["<slowly>", "<softly>"],
+    "ENCOURAGE": ["<laughs>", "<brightly>"],
+    "NEUTRAL": [],
+}
+
+
+def strategy_for(mode: str) -> str:
+    return STRATEGY_FOR_MODE[mode]
+
+
+def tts_tags_for(strategy: str) -> list:
+    return list(TTS_TAGS[strategy])
+
 
 class MoodManager:
     def __init__(self, gamma=0.7, threshold=0.5, persistence=2):
@@ -82,6 +106,20 @@ class MoodManager:
         if self.mode != self.prev_mode:
             reason += f" [switched from {self.prev_mode}]"
         return reason
+
+    @property
+    def strategy(self) -> str:
+        return strategy_for(self.mode)
+
+    def get_current_profile(self) -> dict:
+        """Everything downstream (prompt, TTS, log) needs from the mood state, decided in code."""
+        return {
+            "mode": self.mode,
+            "strategy": self.strategy,
+            "check_in": self.check_in,
+            "reason": self.explain(),
+            "tts_tags": tts_tags_for(self.strategy),
+        }
 
 
 def reactive_mode(p_distress: float, threshold=0.5) -> str:

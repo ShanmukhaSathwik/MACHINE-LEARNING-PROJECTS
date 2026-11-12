@@ -9,7 +9,7 @@ import time
 import response_generator as rg
 
 TRANSCRIPT = "I have an exam tomorrow and I haven't studied at all."
-MODES = ["DEFAULT", "EMPATHETIC"]
+STRATEGIES = rg.STRATEGIES   # VALIDATE / CALM / ENCOURAGE / NEUTRAL
 
 
 def section(title):
@@ -17,23 +17,23 @@ def section(title):
 
 
 section("1) build_system_prompt")
-for mode, emotion in [("DEFAULT", None), ("EMPATHETIC", "sad")]:
-    print(f"\n--- {mode} (perceived_emotion={emotion!r}) ---")
-    print(rg.build_system_prompt(mode, perceived_emotion=emotion))
+for strategy, check_in in [(s, False) for s in STRATEGIES] + [("VALIDATE", True)]:
+    print(f"\n--- {strategy} (check_in={check_in}) ---")
+    print(rg.build_system_prompt(strategy, check_in=check_in))
 
 section("2) Template path (use_llm=False)")
-for mode in MODES:
-    out = rg.generate_reply(mode, TRANSCRIPT, use_llm=False)
-    print(f"{mode:10s} source={out['source']:8s} error={out['error']}  text={out['text']!r}")
-    assert out["source"] == "template" and out["error"] is None
+for strategy in STRATEGIES:
+    out = rg.generate_reply(strategy, TRANSCRIPT, use_llm=False)
+    print(f"{strategy:10s} source={out['source']:8s} error={out['error']}  text={out['text']!r}")
+    assert out["source"] == "template" and out["error"] is None and out["system_prompt"] is None
 
 section("3) Forced failure (invalid key injected into this call only)")
-out = rg.generate_reply("EMPATHETIC", TRANSCRIPT, perceived_emotion="sad",
-                        use_llm=True, api_key="INVALID-test-key")
+out = rg.generate_reply("VALIDATE", TRANSCRIPT, use_llm=True, api_key="INVALID-test-key")
 print(f"source={out['source']}  model={out['model']}  error={out['error']}")
 print(f"text={out['text']!r}")
-ok = out["source"] == "template" and out["error"] is not None and out["model"] is None
-print("PASS" if ok else "FAIL", "- fell back to template with error set")
+ok = (out["source"] == "template" and out["error"] is not None and out["model"] is None
+      and out["system_prompt"] == rg.build_system_prompt("VALIDATE"))
+print("PASS" if ok else "FAIL", "- fell back to template with error set, prompt still returned")
 assert ok
 
 section("4) Real Gemini")
@@ -42,9 +42,9 @@ if not os.environ.get("GEMINI_API_KEY"):
 else:
     print("model chain:", " -> ".join(rg.GEMINI_MODELS))
     print(f"per-model timeout {rg.PER_MODEL_TIMEOUT_S}s, total budget {rg.TOTAL_BUDGET_S}s")
-    for mode, emotion in [("DEFAULT", None), ("EMPATHETIC", "sad")]:
+    for strategy in ["NEUTRAL", "VALIDATE"]:
         t0 = time.perf_counter()
-        out = rg.generate_reply(mode, TRANSCRIPT, perceived_emotion=emotion)
+        out = rg.generate_reply(strategy, TRANSCRIPT)
         dt = time.perf_counter() - t0
-        print(f"\n{mode} source={out['source']} model={out['model']} latency={dt:.2f}s error={out['error']}")
+        print(f"\n{strategy} source={out['source']} model={out['model']} latency={dt:.2f}s error={out['error']}")
         print(f"  {out['text']}")

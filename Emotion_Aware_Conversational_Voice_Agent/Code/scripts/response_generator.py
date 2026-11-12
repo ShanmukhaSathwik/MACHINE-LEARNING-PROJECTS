@@ -1,10 +1,12 @@
 """
 response_generator.py
-Turns (tone mode, transcript) into a short spoken reply.
-- build_system_prompt(): MoodManager mode -> tone; memory facts -> content (Task B)
-- generate_reply_template(): deterministic offline reply (demo fallback + paper comparison)
+Turns (strategy, transcript) into a short spoken reply.
+Code decides, LLM speaks (P3): MoodManager picks the strategy (VALIDATE / CALM / ENCOURAGE / NEUTRAL);
+the prompt carries only that strategy's fixed instructions, never an emotion label or a probability.
+- build_system_prompt(): strategy -> fixed instruction block; check_in -> ask instead of assume; facts (Task B)
+- generate_reply_template(): deterministic offline reply per strategy (demo fallback + paper comparison)
 - _call_llm(): the ONLY function that talks to Gemini (google-genai); tries GEMINI_MODELS in order
-- generate_reply(): LLM first, template on any failure. Never raises.
+- generate_reply(): LLM first, template on any failure. Never raises. Returns the exact system prompt sent.
 Key: GEMINI_API_KEY from Code/.env (see .env.example).
 Models: GEMINI_MODEL (else DEFAULT_MODEL), then GEMINI_FALLBACK_MODELS (else DEFAULT_FALLBACKS).
 """
@@ -47,33 +49,44 @@ primary = os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
 fallbacks = _env_list("GEMINI_FALLBACK_MODELS") or DEFAULT_FALLBACKS
 GEMINI_MODELS = list(dict.fromkeys([primary, *fallbacks]))   # ordered, no duplicates
 
-TONE_PROFILES = {
-    "DEFAULT": (
-        "Be warm, natural and friendly, like a close friend. "
-        "Keep it concise and conversational."
+STRATEGIES = ["VALIDATE", "CALM", "ENCOURAGE", "NEUTRAL"]
+
+# One fixed instruction block per strategy. No emotion labels, scores or detection claims (P3).
+STRATEGY_INSTRUCTIONS = {
+    "VALIDATE": (
+        "Acknowledge their feeling first and reflect it back gently. "
+        "Do not give advice in your first sentence. No jokes. Ask at most one gentle question."
     ),
-    "EMPATHETIC": (
-        "Acknowledge and validate their feeling first. Be soft and gentle. "
-        "No jokes. Don't rush into advice. Ask at most one gentle question."
+    "CALM": (
+        "Use short, simple sentences at a slow, steady pace. "
+        "Offer one concrete next step they could take right now. No jokes."
+    ),
+    "ENCOURAGE": (
+        "Be warm and upbeat. Celebrate the specific things they did or said, not generic praise."
+    ),
+    "NEUTRAL": (
+        "Be warm, natural and friendly, like a close friend. Keep it concise and conversational."
     ),
 }
+CHECK_IN_INSTRUCTION = (
+    "Check in: you are not sure how they are feeling right now. "
+    "Gently ask how they are feeling instead of assuming."
+)
 
 
-def build_system_prompt(mode, perceived_emotion=None, memory_facts=None) -> str:
-    tone = TONE_PROFILES.get(mode, TONE_PROFILES["DEFAULT"])
+def build_system_prompt(strategy, facts=None, check_in=False) -> str:
+    if strategy not in STRATEGY_INSTRUCTIONS:
+        raise ValueError(f"unknown strategy {strategy!r}; expected one of {STRATEGIES}")
     parts = [
         "You are a supportive voice companion having a spoken conversation. "
         "You are not a therapist and do not diagnose or give clinical advice.",
-        f"Tone ({mode}): {tone}",
+        f"Response strategy ({strategy}): {STRATEGY_INSTRUCTIONS[strategy]}",
     ]
-    if perceived_emotion:
-        parts.append(
-            f"Context: from their voice, they seem {perceived_emotion}. "
-            "Let this shape how you respond, but don't announce it or say you detected it."
-        )
-    if memory_facts:
-        facts = "\n".join(f"- {f}" for f in memory_facts)
-        parts.append(f"Things you remember about them (use only if relevant):\n{facts}")
+    if check_in:
+        parts.append(CHECK_IN_INSTRUCTION)
+    if facts:
+        lines = "\n".join(f"- {f}" for f in facts)
+        parts.append(f"Things you remember about them (use only if relevant):\n{lines}")
     parts.append(
         "Output rules: reply in 1 to 3 short sentences meant to be spoken aloud. "
         "Plain speech only: no markdown, no lists, no emoji, no stage directions."
@@ -86,14 +99,19 @@ def build_system_prompt(mode, perceived_emotion=None, memory_facts=None) -> str:
 
 
 TEMPLATES = {
-    "DEFAULT": "Thanks for telling me. How are you feeling about it?",
-    "EMPATHETIC": "That sounds really hard, and it makes sense to feel this way. I'm here with you.",
+    "VALIDATE": "That sounds really hard, and it makes sense to feel this way. I'm here with you.",
+    "CALM": "Let's slow down for a moment. Take one slow breath with me, then we can pick one small next step.",
+    "ENCOURAGE": "That's really good to hear. Tell me more about how you pulled it off.",
+    "NEUTRAL": "Thanks for telling me. How are you feeling about it?",
 }
+CHECK_IN_TEMPLATE = "I want to make sure I'm with you. How are you feeling right now?"
 
 
-def generate_reply_template(mode, transcript) -> str:
+def generate_reply_template(strategy, transcript, check_in=False) -> str:
     """Deterministic offline reply. The transcript is accepted for interface parity but not parsed."""
-    return TEMPLATES.get(mode, TEMPLATES["DEFAULT"])
+    if check_in:
+        return CHECK_IN_TEMPLATE
+    return TEMPLATES[strategy]
 
 
 class _NextModel(Exception):
@@ -186,21 +204,26 @@ def _call_llm(system_prompt, user_message, history=None, api_key=None, models=No
     raise RuntimeError("all models failed: " + "; ".join(failures))
 
 
-def generate_reply(mode, transcript, perceived_emotion=None, memory_facts=None,
+def generate_reply(strategy, transcript, facts=None, check_in=False,
                    history=None, use_llm=USE_LLM, api_key=None) -> dict:
     """Returns {"text", "source": "llm"|"template", "model": str|None, "error": None|str,
-    "attempts": [{model, outcome, seconds}, ...]}. Never raises."""
+    "attempts": [{model, outcome, seconds}, ...], "system_prompt": str|None}. Never raises.
+    system_prompt is the exact string given to the LLM (kept even if the LLM then failed and the
+    template was used); None when use_llm=False."""
     error = None
     attempts = []
+    prompt = None
     if use_llm:
         try:
-            prompt = build_system_prompt(mode, perceived_emotion, memory_facts)
+            prompt = build_system_prompt(strategy, facts, check_in)
             text, model = _call_llm(prompt, transcript, history, api_key, attempts=attempts)
-            return {"text": text, "source": "llm", "model": model, "error": None, "attempts": attempts}
+            return {"text": text, "source": "llm", "model": model, "error": None, "attempts": attempts,
+                    "system_prompt": prompt}
         except Exception as e:
             error = f"{type(e).__name__}: {str(e)[:300]}"
     try:
-        text = generate_reply_template(mode, transcript)
+        text = generate_reply_template(strategy, transcript, check_in)
     except Exception as e:
-        text, error = TEMPLATES["DEFAULT"], f"template failed: {type(e).__name__}"
-    return {"text": text, "source": "template", "model": None, "error": error, "attempts": attempts}
+        text, error = TEMPLATES["NEUTRAL"], f"template failed: {type(e).__name__}"
+    return {"text": text, "source": "template", "model": None, "error": error, "attempts": attempts,
+            "system_prompt": prompt}

@@ -1,7 +1,8 @@
 """
 agent.py
 Task A: thin end-to-end agent, printed to the terminal (no TTS, no memory).
-Per turn: audio -> emotion probs + transcript -> MoodManager mode -> mood-steered reply.
+Per turn: audio -> emotion probs + transcript -> MoodManager mode -> strategy -> strategy-steered reply.
+Code decides, LLM speaks (P3): the LLM gets only the strategy's fixed instructions, never the emotion label.
 Logs every turn as one JSON line to results/logs/session_<timestamp>.jsonl.
 
 Usage (from anywhere):
@@ -24,8 +25,8 @@ import pandas as pd
 from feature_extraction import load_audio, SAMPLE_RATE
 from emotion_predictor import EmotionPredictor, CODE_DIR
 from asr import ASR
-from mood_manager import MoodManager, reactive_mode, TAU_CONF
-from response_generator import generate_reply, build_system_prompt
+from mood_manager import MoodManager, reactive_mode, strategy_for, tts_tags_for, TAU_CONF
+from response_generator import generate_reply
 
 # Config
 GAMMA, THRESHOLD, PERSISTENCE = 0.7, 0.5, 2   # MoodManager v1 defaults (same as plot_mood_real.py)
@@ -35,8 +36,6 @@ MANIFEST = CODE_DIR / "data" / "manifests" / "manifest.csv"
 SEED = 42
 LABEL_SCRIPT = ["happy", "happy", "angry", "happy", "sad", "sad",
                 "angry", "happy", "sad", "happy", "happy", "happy"]
-# Phrased to read naturally in build_system_prompt's "from their voice, they seem {perceived_emotion}."
-DISTRESS_CONTEXT = "to have sounded distressed over the last few turns"
 
 
 class Agent:
@@ -86,28 +85,24 @@ class Agent:
         if self.use_mood:
             mode = self.mood.update(emo["p_distress"], confidence, self.tau_conf)
             mood_score, turns_above = self.mood.score, self.mood.turns_above
-            abstained, check_in = self.mood.abstained, self.mood.check_in
-            reason = self.mood.explain()
+            abstained = self.mood.abstained
+            profile = self.mood.get_current_profile()   # {mode, strategy, check_in, reason, tts_tags}
         else:
             mode = reactive_mode(emo["p_distress"], THRESHOLD)   # per-turn baseline for ablation
             mood_score, turns_above = None, None
-            abstained, check_in = False, False
-            reason = "reactive baseline: p_distress vs 0.5"
+            abstained = False
+            strategy = strategy_for(mode)
+            profile = {"mode": mode, "strategy": strategy, "check_in": False,
+                       "reason": "reactive baseline: p_distress vs 0.5", "tts_tags": tts_tags_for(strategy)}
         timings["mood"] = time.perf_counter() - t0
         switched = self.prev_mode is not None and mode != self.prev_mode
         self.prev_mode = mode
 
-        # Tone comes from the mood state only. The per-turn classifier label is noisy
-        # (~72% accurate on held-out speakers); passing it to the LLM would let one
-        # misclassified clip change the agent's tone and undo MoodManager's smoothing.
-        perceived_emotion = DISTRESS_CONTEXT if mode == "EMPATHETIC" else None
-
-        # Same arguments generate_reply passes to build_system_prompt, so this is the exact LLM prompt
-        system_prompt = build_system_prompt(mode, perceived_emotion, None) if self.use_llm else None
-
+        # The reply is steered by the strategy only. The per-turn classifier label is noisy
+        # (~72% on held-out speakers, far worse on my voice); it never reaches the LLM (P3).
         t0 = time.perf_counter()
-        reply = generate_reply(mode, transcript, perceived_emotion=perceived_emotion,
-                               memory_facts=None, history=list(self.history), use_llm=self.use_llm)
+        reply = generate_reply(profile["strategy"], transcript, facts=None, check_in=profile["check_in"],
+                               history=list(self.history), use_llm=self.use_llm)
         timings["llm"] = time.perf_counter() - t0
         timings["total"] = time.perf_counter() - t_start
         self.history.append((transcript, reply["text"]))
@@ -123,7 +118,6 @@ class Agent:
             "turns_above": turns_above,
             "mode": mode,
             "switched": switched,
-            "perceived_emotion": perceived_emotion,
             "reply": reply["text"],
             "source": reply["source"],
             "model": reply["model"],
@@ -136,13 +130,12 @@ class Agent:
             "confidence": confidence,
             "mood_params": {"gamma": GAMMA, "threshold": THRESHOLD, "persistence": PERSISTENCE,
                             "tau_conf": self.tau_conf},
-            "reason": reason,
-            "system_prompt": system_prompt,
-            # Placeholders for later A2 steps; always present so the log schema is stable
-            "abstained": abstained,   # A2.2
-            "check_in": check_in,     # A2.2 (logged only; used in the prompt from A2.3)
-            "strategy": None,
-            "tts_tags": None,
+            "reason": profile["reason"],
+            "system_prompt": reply["system_prompt"],   # exactly what generate_reply sent (null with --no-llm)
+            "abstained": abstained,                    # A2.2
+            "check_in": profile["check_in"],           # A2.2; adds the check-in instruction to the prompt (A2.3)
+            "strategy": profile["strategy"],           # A2.3
+            "tts_tags": profile["tts_tags"],           # A2.3, from the strategy only (P6)
         }
         with open(self.log_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(result) + "\n")
@@ -162,6 +155,7 @@ class Agent:
         flags = "  ".join(f for f in ["ABSTAINED" if r["abstained"] else "",
                                       "CHECK_IN" if r["check_in"] else ""] if f)
         print(f"  reason     : {r['reason']}" + (f"   [{flags}]" if flags else ""))
+        print(f"  strategy   : {r['strategy']}  tts_tags={r['tts_tags']}")
         print(f"  reply      : {r['reply']}")
         src = f"{r['source']} ({r['model']})" if r["model"] else r["source"]
         print(f"  source     : {src}" + (f"  error={r['error']}" if r["error"] else ""))
@@ -211,7 +205,8 @@ def summary(results, true_labels=None):
         true = f"  true={true_labels[r['turn'] - 1]:5s}" if true_labels else ""
         model = f" ({r['model']})" if r["model"] else ""
         print(f"  turn {r['turn']:2d}{true}  pred={r['label']:5s}  p_distress={r['p_distress']:.2f}  "
-              f"conf={r['confidence']:.2f}{'*' if r['abstained'] else ' '} mode={r['mode']:10s}  source={r['source']}{model}")
+              f"conf={r['confidence']:.2f}{'*' if r['abstained'] else ' '} mode={r['mode']:10s}  "
+              f"strategy={r['strategy']:9s}{' CI' if r['check_in'] else '   '}  source={r['source']}{model}")
     totals = [r["timings"]["total"] for r in results]
     print(f"Average turn latency: {np.mean(totals):.2f}s  (min {min(totals):.2f}s, max {max(totals):.2f}s)")
     fallbacks = [r for r in results if fell_back(r)]
