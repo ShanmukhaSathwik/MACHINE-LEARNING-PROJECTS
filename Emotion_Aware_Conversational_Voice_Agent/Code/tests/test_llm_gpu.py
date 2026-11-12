@@ -228,10 +228,41 @@ def test_qwen_fails_gemini_answers():
     llm._backends["gemini"] = answer("Gemini is here for you today.", model="gemini-x")
     r = llm.generate_reply("SYS", [], "hello", "NEUTRAL")
     assert r["backend"] == "gemini" and r["model"] == "gemini-x" and r["fell_back"] is True
-    assert r["errors"] == [{"backend": "qwen", "error": "RuntimeError: CUDA out of memory"}]
+    assert r["errors"] == [{"backend": "qwen", "model": None, "error": "RuntimeError: CUDA out of memory"}]
     assert r["text"] == "Gemini is here for you today."
     assert set(r) == {"text", "sentences", "backend", "model", "fell_back", "errors", "seconds",
                       "first_sentence_seconds"}
+
+
+def test_gemini_internal_model_switch_is_recorded(monkeypatch):
+    """Stub of response_generator._call_llm: the first Gemini model fails (503), the second answers."""
+    def first_fails(system_prompt, user_message, history=None, api_key=None, models=None, attempts=None):
+        attempts.append({"model": "gemini-a", "outcome": "503", "seconds": 0.39})
+        attempts.append({"model": "gemini-b", "outcome": "ok", "seconds": 1.2})
+        return "Good to hear from you today.", "gemini-b"
+
+    monkeypatch.setattr(response_generator, "_call_llm", first_fails)
+    llm = make_llm("smoke_cpu")                               # backend gemini
+    failure = [{"backend": "gemini", "model": "gemini-a", "error": "503 after 0.39s"}]
+
+    r = llm.generate_reply("SYS", [], "hello", "NEUTRAL")
+    assert r["backend"] == "gemini" and r["model"] == "gemini-b"
+    assert r["errors"] == failure and r["fell_back"] is True
+    assert llm.last_reply["errors"] == failure
+
+    assert llm.complete("extract this") == "Good to hear from you today."
+    assert llm.last_complete["model"] == "gemini-b"
+    assert llm.last_complete["errors"] == failure and llm.last_complete["fell_back"] is True
+
+    def all_fail(system_prompt, user_message, history=None, api_key=None, models=None, attempts=None):
+        attempts.append({"model": "gemini-a", "outcome": "503", "seconds": 0.39})
+        attempts.append({"model": "gemini-b", "outcome": "timeout", "seconds": 10.0})
+        raise RuntimeError("all models failed")
+
+    monkeypatch.setattr(response_generator, "_call_llm", all_fail)
+    r = llm.generate_reply("SYS", [], "hello", "NEUTRAL")
+    assert r["backend"] == "template" and r["fell_back"] is True
+    assert r["errors"] == failure + [{"backend": "gemini", "model": "gemini-b", "error": "timeout after 10.0s"}]
 
 
 @pytest.mark.parametrize("strategy", ["VALIDATE", "CALM", "ENCOURAGE", "NEUTRAL"])
@@ -365,6 +396,27 @@ def test_4bit_on_cpu_is_a_clear_error():
     llm = make_llm()                                        # gpu_16gb values on a CPU device
     with pytest.raises(ValueError, match="CUDA"):
         llm.load()
+
+
+def test_answered_by_uses_the_model_that_answered_most():
+    rows = [{"backend": "gemini", "model": "gemini-lite"}, {"backend": "gemini", "model": "gemini-flash"},
+            {"backend": "gemini", "model": "gemini-lite"}, {"backend": "template", "model": "template"}]
+    assert llm_gpu.answered_by(rows, "gemini", "gemini-flash") == ("gemini", "gemini-lite")
+    tie = [{"backend": "qwen", "model": "Qwen/Qwen3-8B"}, {"backend": "gemini", "model": "g"}]
+    assert llm_gpu.answered_by(tie, "x", "y") == ("qwen", "Qwen/Qwen3-8B")          # first of a tie
+    assert llm_gpu.answered_by([{"backend": "none", "model": "none"}], "gemini", "cfg") == ("gemini", "cfg")
+
+
+def test_demo_rows_record_who_answered(capsys):
+    llm = make_llm()
+    llm._backends["qwen"] = failing("CUDA out of memory")
+    llm._backends["gemini"] = answer("The user has a sister whose wedding is next month.", model="gemini-lite")
+    rows = llm_gpu.demo(llm)
+    assert len(rows) == 5
+    for r in rows:
+        assert r["backend"] == "gemini" and r["model"] == "gemini-lite"
+        assert r["fell_back"] is True and "qwen: RuntimeError: CUDA out of memory" in r["errors"]
+    assert llm_gpu.answered_by(rows, llm.backend, llm.model_label()) == ("gemini", "gemini-lite")
 
 
 def test_new_csv_path_never_overwrites(tmp_path, monkeypatch):

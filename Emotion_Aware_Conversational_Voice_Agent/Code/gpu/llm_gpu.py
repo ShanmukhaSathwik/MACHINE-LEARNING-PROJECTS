@@ -212,8 +212,27 @@ def model_short(name) -> str:
     return str(name or "default").rstrip("/\\").replace("\\", "/").split("/")[-1]
 
 
-def _err(name, e) -> dict:
-    return {"backend": name, "error": f"{type(e).__name__}: {str(e)[:300]}"}
+def _err(name, e, model=None) -> dict:
+    return {"backend": name, "model": model, "error": f"{type(e).__name__}: {str(e)[:300]}"}
+
+
+class BackendError(RuntimeError):
+    """A backend failed after trying one or more models; failed_attempts lists each one as an errors entry."""
+
+    def __init__(self, message, failed_attempts):
+        super().__init__(message)
+        self.failed_attempts = failed_attempts
+
+
+def _unpack(result):
+    """A backend returns (model, chunks) or (model, chunks, failed_attempts); the third part lists models it
+    tried and gave up on before `model` answered (Gemini's own model switch)."""
+    model, chunks = result[0], result[1]
+    return model, chunks, list(result[2]) if len(result) > 2 else []
+
+
+def _errors_from(name, e, model=None) -> list:
+    return list(getattr(e, "failed_attempts", None) or []) or [_err(name, e, model)]
 
 
 # ---------------------------------------------------------------------------------------------
@@ -344,11 +363,23 @@ class LLM:
 
     def _gemini_backend(self, system_prompt, history, user_text, *, greedy, max_new_tokens):
         """response_generator._call_llm. It has no sampling / token-limit arguments (Gemini uses its own
-        settings) and keeps at most response_generator.MAX_HISTORY_TURNS pairs itself."""
+        settings) and keeps at most response_generator.MAX_HISTORY_TURNS pairs itself.
+        Its attempts log is passed through: every model that did not answer becomes a failed attempt."""
         models = [self.model_name] if (self.backend == "gemini" and self.model_name) else None
         pairs = list(history or [])[-self.history_turns:] if self.history_turns > 0 else []
-        text, model = response_generator._call_llm(system_prompt, user_text, pairs, models=models)
-        return model, iter([text])
+        attempts = []
+
+        def failed():
+            return [{"backend": "gemini", "model": a.get("model"),
+                     "error": f"{a.get('outcome')} after {a.get('seconds')}s"}
+                    for a in attempts if a.get("outcome") != "ok"]
+
+        try:
+            text, model = response_generator._call_llm(system_prompt, user_text, pairs, models=models,
+                                                       attempts=attempts)
+        except Exception as e:  # noqa: BLE001
+            raise BackendError(f"{type(e).__name__}: {str(e)[:300]}", failed()) from e
+        return model, iter([text]), failed()
 
     def _chain(self, with_template=True) -> list:
         if not self.allow_fallback:
@@ -379,8 +410,9 @@ class LLM:
                     fn = self._backends.get(name)
                     if fn is None:
                         raise ValueError(f"unknown backend {name!r}")
-                    model, chunks = fn(system_prompt, history, user_text,
-                                       greedy=False, max_new_tokens=self.max_new_tokens)
+                    model, chunks, internal = _unpack(fn(system_prompt, history, user_text,
+                                                         greedy=False, max_new_tokens=self.max_new_tokens))
+                    info["errors"].extend(internal)
                 sentences, think = SentenceBuffer(), ThinkFilter()
 
                 def finished(raw):
@@ -398,12 +430,15 @@ class LLM:
                     yield s
                 if not got_any:
                     raise RuntimeError("empty reply after cleaning")
-                info.update(backend=name, model=model, fell_back=name != chain[0])
+                # fell back = something was tried before the model that answered (another backend, or
+                # an earlier model inside this backend, e.g. Gemini's own switch)
+                info.update(backend=name, model=model, fell_back=bool(info["errors"]))
                 break
             except Exception as e:  # noqa: BLE001 - every failure is recorded
-                info["errors"].append(_err(name, e))
+                tried_before = bool(info["errors"])
+                info["errors"].extend(_errors_from(name, e, model))
                 if got_any:          # part of the reply was already spoken: stop here rather than start over
-                    info.update(backend=name, model=model, fell_back=name != chain[0])
+                    info.update(backend=name, model=model, fell_back=tried_before)
                     break
                 if not self.allow_fallback:
                     info["seconds"] = round(time.perf_counter() - t0, 3)
@@ -428,27 +463,31 @@ class LLM:
         """One-shot answer: greedy (qwen), extract_max_new_tokens, no history, no system prompt, thinking off.
         Tries the backend chain without the template (a template cannot extract); raises if all fail."""
         t0 = time.perf_counter()
-        info = {"backend": None, "model": None, "errors": [], "seconds": 0.0}
+        info = {"backend": None, "model": None, "fell_back": False, "errors": [], "seconds": 0.0}
         self.last_complete = info
         for name in self._chain(with_template=False):
+            model = None
             try:
                 fn = self._backends.get(name)
                 if fn is None:
                     raise ValueError(f"backend {name!r} cannot complete a prompt")
-                model, chunks = fn(None, [], prompt, greedy=True, max_new_tokens=self.extract_max_new_tokens)
+                model, chunks, internal = _unpack(
+                    fn(None, [], prompt, greedy=True, max_new_tokens=self.extract_max_new_tokens))
+                info["errors"].extend(internal)
                 think = ThinkFilter()
                 text = ("".join(think.feed(c) for c in chunks) + think.flush()).strip()
                 if not text:
                     raise RuntimeError("empty answer")
-                info.update(backend=name, model=model, seconds=round(time.perf_counter() - t0, 3))
+                info.update(backend=name, model=model, fell_back=bool(info["errors"]),
+                            seconds=round(time.perf_counter() - t0, 3))
                 return text
             except Exception as e:  # noqa: BLE001
-                info["errors"].append(_err(name, e))
+                info["errors"].extend(_errors_from(name, e, model))
                 if not self.allow_fallback:
                     raise
         info["seconds"] = round(time.perf_counter() - t0, 3)
         raise RuntimeError("no backend could complete the prompt: "
-                           + "; ".join(f"{e['backend']}: {e['error']}" for e in info["errors"]))
+                           + _errors_text(info["errors"]))
 
     def as_llm_fn(self):
         """llm_fn(prompt) -> str for fact_extractor.extract_fact."""
@@ -487,8 +526,22 @@ def new_csv_path(backend, model_name) -> Path:
     return path
 
 
+def answered_by(rows, default_backend, default_model):
+    """(backend, model) that answered the most demo rows, for the CSV name. A tie goes to the model that
+    answered first. With no answering model at all (every row failed), the configured backend / model."""
+    counts = {}
+    for r in rows:
+        if r.get("model") not in (None, "", "none"):
+            key = (r["backend"], r["model"])
+            counts[key] = counts.get(key, 0) + 1
+    if not counts:
+        return default_backend, default_model
+    return max(counts, key=counts.get)      # dicts keep insertion order, so max() keeps the first of a tie
+
+
 def _errors_text(errors) -> str:
-    return " | ".join(f"{e['backend']}: {e['error']}" for e in errors)
+    """'gemini/gemini-3.6-flash: 503 after 0.39s | qwen: RuntimeError: ...' (model shown when known)."""
+    return " | ".join(f"{e['backend']}{'/' + e['model'] if e.get('model') else ''}: {e['error']}" for e in errors)
 
 
 def demo(llm) -> list:
@@ -514,14 +567,14 @@ def demo(llm) -> list:
     t0 = time.perf_counter()
     fact = extract_fact(DEMO_EXTRACT, llm.as_llm_fn())
     seconds = round(time.perf_counter() - t0, 3)
-    c = llm.last_complete or {"backend": None, "model": None, "errors": []}
+    c = llm.last_complete or {"backend": None, "model": None, "fell_back": False, "errors": []}
     print(f"   -> {fact or 'NONE'}")
     print(f"   backend {c['backend']}  model {c['model']}  {seconds}s")
     if c["errors"]:
         print(f"   errors: {_errors_text(c['errors'])}")
     rows.append({"kind": "extract", "strategy": "", "user_text": DEMO_EXTRACT, "reply": fact or "NONE",
-                 "n_sentences": "", "backend": c["backend"], "model": c["model"],
-                 "fell_back": bool(c["backend"]) and c["backend"] != llm.backend,
+                 "n_sentences": "", "backend": c["backend"] or "none", "model": c["model"] or "none",
+                 "fell_back": bool(c["fell_back"]) or c["backend"] is None,
                  "errors": _errors_text(c["errors"]), "first_sentence_seconds": "", "seconds": seconds})
     return rows
 
@@ -556,7 +609,8 @@ def _main():
     print(f"loaded in {timer.times['load']:.1f}s, warm-up {timer.times['warm_up']:.2f}s")
 
     rows = demo(llm)
-    path = new_csv_path(llm.backend, llm.model_label())
+    backend, model = answered_by(rows, llm.backend, llm.model_label())
+    path = new_csv_path(backend, model)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
         writer.writeheader()
