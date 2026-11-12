@@ -1,0 +1,122 @@
+# gpu_config.yaml - settings for the GPU demo build of the emotion voice agent.
+#
+# How it works:
+#   - `base:` holds the settings every preset shares.
+#   - `presets:` holds one block per machine type. Each preset lists only what
+#     differs from base. gpu/device.py deep-merges base + the chosen preset.
+#
+# Choosing a preset (first match wins):
+#   1. --preset NAME on the command line (or load_config("NAME") in code)
+#   2. the AGENT_PRESET environment variable
+#   3. smoke_cpu
+#
+# Relative paths below are relative to Code/ (the folder that holds gpu/ and scripts/).
+
+base:
+  seed: 42             # one random seed for python, numpy and torch, so runs repeat
+  sample_rate: 16000   # audio sample rate in Hz; every model in the pipeline expects 16 kHz
+
+  # The "brain": MoodManager, which turns per-turn emotion scores into a stable mood.
+  brain:
+    tau_conf: 0.0      # confidence cutoff below which a turn is ignored. 0.0 = abstain off; re-chosen after step 2 for the new emotion model
+    gamma: 0.7         # smoothing: how much of the previous mood score carries into the next turn (0 = none, 1 = never changes)
+    threshold: 0.5     # mood score above which a turn counts as distressed
+    persistence: 2     # distressed turns in a row needed before the agent switches to an empathetic mode
+    check_in_after: 2  # abstained turns in a row (while not in the default mood) before the agent asks how the user feels
+
+  # Text generation settings for the language model (the part that writes the reply).
+  llm:
+    max_new_tokens: 150  # longest reply the model may write, in tokens (about 100 words); replies are meant to be 1-3 sentences
+    temperature: 0.7     # randomness of word choice: lower = more predictable, higher = more varied
+    top_p: 0.9           # only sample from the most likely words that together cover 90% of the probability
+    thinking: false      # turn off the model's hidden "thinking" step, which adds delay a live voice reply cannot afford
+
+  # Speech recognition (turns the user's audio into text).
+  asr:
+    language: "en"     # transcribe as English; skips language detection
+
+  # Where the agent writes its records.
+  logging:
+    log_dir: "results/logs"           # one JSON-lines log per session goes here
+    memory_file: "data/memories.json" # facts the agent remembers about the user between sessions
+
+presets:
+  # Home PC, no GPU. Small models, cloud LLM, system voice. For checking that the pipeline runs end to end.
+  smoke_cpu:
+    device: cpu        # run every model on the CPU
+    dtype: float32     # full precision; the CPU has no fast half-precision math
+    asr:
+      model: "openai/whisper-tiny.en"  # smallest English Whisper: fast on a CPU, less accurate
+      beam_size: 1                     # greedy decoding (one guess at a time): fastest
+    ser:
+      model: "superb/wav2vec2-base-superb-er"  # speech emotion recognition model; small base model that runs on a CPU
+    llm:
+      backend: "gemini"  # use the Gemini cloud API (needs GEMINI_API_KEY in Code/.env), so no local model is loaded
+      model: null        # null = keep the model chain already set in scripts/response_generator.py
+      quantization: "none" # no compression; not used by the cloud backend
+    tts:
+      backend: "pyttsx3" # the operating system's built-in voice: offline, no GPU, not expressive
+
+  # GPU machine with about 12 GB of VRAM (e.g. RTX 3060 12GB / RTX 4070).
+  # For now gpu_12gb, gpu_16gb and gpu_24gb share the same values; they will diverge once real VRAM use is measured.
+  gpu_12gb:
+    device: cuda       # run every model on the NVIDIA GPU; fails loudly if there is none (no silent CPU fallback)
+    dtype: auto        # auto = bfloat16 if the GPU supports it, else float16
+    asr:
+      model: "openai/whisper-large-v3-turbo"  # near large-v3 accuracy with a much smaller decoder, so it is fast
+      beam_size: 5                            # keep the 5 best guesses while decoding: more accurate, slightly slower
+    ser:
+      model: "superb/hubert-large-superb-er"  # speech emotion recognition model used by default on the GPU
+      candidates:                             # models compared in step 2 before one is kept
+        - "superb/hubert-large-superb-er"
+        - "superb/wav2vec2-base-superb-er"
+    llm:
+      backend: "qwen"     # run a Qwen model locally on the GPU instead of the cloud API
+      model: null         # pinned in step 7
+      quantization: "4bit" # load the model weights compressed to 4 bits (bitsandbytes) to fit in VRAM
+    tts:
+      backend: "csm"                         # Sesame CSM text-to-speech: expressive, conversational voice
+      model: "sesame/csm-1b"                 # the 1-billion-parameter CSM checkpoint on Hugging Face
+      voice_refs_dir: "gpu/outputs/voice_refs" # reference clips that set the voice per speaking style; filled in step 8
+
+  # GPU machine with about 16 GB of VRAM (e.g. RTX 4060 Ti 16GB / RTX 4080 / T4). Same values as gpu_12gb for now.
+  gpu_16gb:
+    device: cuda       # run every model on the NVIDIA GPU; fails loudly if there is none
+    dtype: auto        # bfloat16 if supported, else float16
+    asr:
+      model: "openai/whisper-large-v3-turbo"  # same as gpu_12gb
+      beam_size: 5                            # same as gpu_12gb
+    ser:
+      model: "superb/hubert-large-superb-er"  # same as gpu_12gb
+      candidates:                             # same as gpu_12gb; compared in step 2
+        - "superb/hubert-large-superb-er"
+        - "superb/wav2vec2-base-superb-er"
+    llm:
+      backend: "qwen"     # local Qwen on the GPU
+      model: null         # pinned in step 7
+      quantization: "4bit" # 4-bit weights; may be relaxed later if VRAM allows
+    tts:
+      backend: "csm"                         # Sesame CSM text-to-speech
+      model: "sesame/csm-1b"                 # same as gpu_12gb
+      voice_refs_dir: "gpu/outputs/voice_refs" # filled in step 8
+
+  # GPU machine with about 24 GB of VRAM (e.g. RTX 3090 / RTX 4090 / A5000). Same values as gpu_12gb for now.
+  gpu_24gb:
+    device: cuda       # run every model on the NVIDIA GPU; fails loudly if there is none
+    dtype: auto        # bfloat16 if supported, else float16
+    asr:
+      model: "openai/whisper-large-v3-turbo"  # same as gpu_12gb
+      beam_size: 5                            # same as gpu_12gb
+    ser:
+      model: "superb/hubert-large-superb-er"  # same as gpu_12gb
+      candidates:                             # same as gpu_12gb; compared in step 2
+        - "superb/hubert-large-superb-er"
+        - "superb/wav2vec2-base-superb-er"
+    llm:
+      backend: "qwen"     # local Qwen on the GPU
+      model: null         # pinned in step 7
+      quantization: "4bit" # 4-bit weights; may be relaxed later if VRAM allows
+    tts:
+      backend: "csm"                         # Sesame CSM text-to-speech
+      model: "sesame/csm-1b"                 # same as gpu_12gb
+      voice_refs_dir: "gpu/outputs/voice_refs" # filled in step 8

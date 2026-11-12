@@ -18,3 +18,4 @@ soundfile==0.14.0
 librosa==1.0.0
 bitsandbytes==0.50.2
 python-dotenv==1.2.4   # reads HF_TOKEN from Code/.env
+pyyaml==6.0.3          # gpu/device.py reads gpu/gpu_config.yaml (same pin as requirements.txt)
