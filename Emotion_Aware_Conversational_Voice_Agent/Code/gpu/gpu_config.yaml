@@ -35,6 +35,10 @@ base:
   asr:
     language: "en"     # transcribe as English; skips language detection
 
+  # Speech emotion recognition (guesses the emotion from how the user sounds).
+  ser:
+    max_seconds: 20    # longer audio is cut to this many seconds to protect GPU memory
+
   # Where the agent writes its records.
   logging:
     log_dir: "results/logs"           # one JSON-lines log per session goes here
