@@ -47,6 +47,13 @@ base:
   ser:
     max_seconds: 20    # longer audio is cut to this many seconds to protect GPU memory
 
+  # Text-to-speech (the agent's voice; gpu/tts_gpu.py).
+  tts:
+    out_sample_rate: 24000   # Hz; CSM's audio codec (Mimi) works at 24 kHz, so every voice is output at this rate
+    max_audio_seconds: 12    # longest audio CSM may generate for ONE sentence (stops runaway generation)
+    speaker_id: "0"          # CSM speaker label used for both the reference clip and the new sentence (one stable voice)
+    seed: 42                 # fixed before every generation, so voices and styles are compared on equal terms
+
   # Where the agent writes its records.
   logging:
     log_dir: "results/logs"           # one JSON-lines log per session goes here
