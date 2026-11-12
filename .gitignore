@@ -40,3 +40,6 @@ Thumbs.db
 
 # Agent session logs (contain user transcripts)
 Emotion_Aware_Conversational_Voice_Agent/Code/results/logs/
+
+# Per-user consent records (runtime data written by scripts/safety.py)
+Emotion_Aware_Conversational_Voice_Agent/Code/data/consent.json
