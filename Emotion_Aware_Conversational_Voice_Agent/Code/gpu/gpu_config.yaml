@@ -44,6 +44,33 @@ base:
     log_dir: "results/logs"           # one JSON-lines log per session goes here
     memory_file: "data/memories.json" # facts the agent remembers about the user between sessions
 
+  # Fine-tuning the speech emotion model on RAVDESS + CREMA-D (gpu/finetune_ser.py).
+  finetune:
+    manifest: "data/manifests/ser_4class.csv"   # combined manifest from gpu/build_ser_manifest.py
+    in_4class_only: true                         # use only rows with in_4class == True (neutral/happy/angry/sad; no fearful)
+    base_model: "superb/hubert-large-superb-er"  # pretrained model to start from; its own label order is kept
+    freeze_feature_encoder: true   # keep the convolutional front end fixed; only the transformer layers and head learn
+    lr: 2.0e-5                     # learning rate: how big each weight update is
+    weight_decay: 0.01             # small pull of the weights toward zero, against overfitting
+    warmup_ratio: 0.1              # first 10% of steps ramp the learning rate up from 0, then it falls linearly to 0
+    max_epochs: 10                 # most passes over the training clips
+    early_stop_patience: 3         # stop after this many epochs without a better validation macro-F1
+    class_weighted_loss: true      # rarer classes count more in the loss, so the model can't win by guessing the common one
+    batch_size: 4                  # clips per forward pass (each preset sets its own)
+    grad_accum: 1                  # forward passes added together before one weight update (effective batch = batch_size x grad_accum)
+    gradient_checkpointing: false  # recompute activations in the backward pass: less VRAM, about 30% slower
+    mixed_precision: false         # train in bf16/fp16 (from device.py) instead of float32: faster, less VRAM; GPU only
+    max_train_clips: null          # null = all training clips; a number = a random subset (smoke test)
+    max_val_clips: null            # null = all validation clips; a number = a random subset (smoke test)
+    max_steps: null                # null = no limit; a number = stop after this many weight updates (smoke test)
+    num_workers: 0                 # background processes that load + augment audio; 0 = load in the main process
+    augment:                       # applied to training clips only, never to validation or test
+      noise_snr_db: [15, 30]       # add white noise at a random signal-to-noise ratio in this range (dB)
+      speed: [0.9, 1.1]            # play faster/slower by a random factor (changes length and pitch together)
+      pitch_semitones: [-2, 2]     # shift the pitch by a random amount without changing the length
+      prob: 0.5                    # each of the three is applied independently with this probability
+    output_dir: "gpu/outputs/ser_finetune"  # one sub-folder per run; gitignored
+
 presets:
   # Home PC, no GPU. Small models, cloud LLM, system voice. For checking that the pipeline runs end to end.
   smoke_cpu:
@@ -60,6 +87,13 @@ presets:
       quantization: "none" # no compression; not used by the cloud backend
     tts:
       backend: "pyttsx3" # the operating system's built-in voice: offline, no GPU, not expressive
+    finetune:
+      base_model: "superb/wav2vec2-base-superb-er"  # small model so the CPU smoke test is quick
+      batch_size: 2          # tiny batches on the CPU
+      max_train_clips: 16    # smoke test: 16 random training clips
+      max_val_clips: 8       # smoke test: 8 random validation clips
+      max_steps: 2           # smoke test: stop after 2 weight updates (only checks that the loop runs)
+      mixed_precision: false # the CPU trains in float32
 
   # GPU machine with about 12 GB of VRAM (e.g. RTX 3060 12GB / RTX 4070).
   # For now gpu_12gb, gpu_16gb and gpu_24gb share the same values; they will diverge once real VRAM use is measured.
@@ -82,6 +116,12 @@ presets:
       backend: "csm"                         # Sesame CSM text-to-speech: expressive, conversational voice
       model: "sesame/csm-1b"                 # the 1-billion-parameter CSM checkpoint on Hugging Face
       voice_refs_dir: "gpu/outputs/voice_refs" # reference clips that set the voice per speaking style; filled in step 8
+    finetune:
+      batch_size: 4                 # 4 clips per pass fits hubert-large in ~12 GB with checkpointing
+      grad_accum: 8                 # effective batch 32
+      gradient_checkpointing: true  # trade ~30% speed for the VRAM headroom a 12 GB card needs
+      mixed_precision: true         # bf16 if the GPU supports it, else fp16 (from device.py)
+      num_workers: 4                # load + augment audio in 4 background processes so the GPU isn't kept waiting
 
   # GPU machine with about 16 GB of VRAM (e.g. RTX 4060 Ti 16GB / RTX 4080 / T4). Same values as gpu_12gb for now.
   gpu_16gb:
@@ -103,6 +143,11 @@ presets:
       backend: "csm"                         # Sesame CSM text-to-speech
       model: "sesame/csm-1b"                 # same as gpu_12gb
       voice_refs_dir: "gpu/outputs/voice_refs" # filled in step 8
+    finetune:
+      batch_size: 8           # 8 clips per pass fits hubert-large in ~16 GB without checkpointing
+      grad_accum: 4           # effective batch 32
+      mixed_precision: true   # bf16 if the GPU supports it, else fp16 (from device.py)
+      num_workers: 4          # load + augment audio in 4 background processes
 
   # GPU machine with about 24 GB of VRAM (e.g. RTX 3090 / RTX 4090 / A5000). Same values as gpu_12gb for now.
   gpu_24gb:
@@ -124,3 +169,8 @@ presets:
       backend: "csm"                         # Sesame CSM text-to-speech
       model: "sesame/csm-1b"                 # same as gpu_12gb
       voice_refs_dir: "gpu/outputs/voice_refs" # filled in step 8
+    finetune:
+      batch_size: 16          # 16 clips per pass fits hubert-large in ~24 GB
+      grad_accum: 2           # effective batch 32
+      mixed_precision: true   # bf16 if the GPU supports it, else fp16 (from device.py)
+      num_workers: 4          # load + augment audio in 4 background processes

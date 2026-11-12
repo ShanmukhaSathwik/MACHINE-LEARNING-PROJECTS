@@ -118,6 +118,56 @@ If the professor cleaned the folder, redo section 1 (downloads are the slow part
 
 ---
 
+## 2a. Bring the training audio
+
+The audio is gitignored (`data/raw/`), so `git clone` does not bring it. The manifest
+`data/manifests/ser_4class.csv` *is* in git and expects the files at the same paths under `Code\`.
+Total about 1.2 GB (RAVDESS 0.57 GB + CREMA-D 0.59 GB).
+
+**At home: copy to a USB drive** (example: USB is `E:`). Only `.wav` files are copied, so
+`data\raw\crema_d\.git` (Git LFS store, another 0.6 GB) stays at home:
+```powershell
+cd F:\projects\Final_project\Emotion_Aware_Conversational_Voice_Agent\Code
+robocopy data\raw E:\ser_audio\raw *.wav /S /XD .git
+```
+
+**On the GPU machine: copy into the same paths** (USB letter may differ there):
+```powershell
+cd $WORK\repo\Emotion_Aware_Conversational_Voice_Agent\Code
+robocopy E:\ser_audio\raw data\raw *.wav /S
+```
+
+**Check the counts** (both must match before training):
+```powershell
+$rav   = (Get-ChildItem data\raw\Actor_* -Recurse -Filter *.wav).Count
+$crema = (Get-ChildItem data\raw\crema_d\AudioWAV -Filter *.wav).Count
+"RAVDESS wavs: $rav (expect 1440)   CREMA-D wavs: $crema (expect 7442)"
+if ($rav -eq 1440 -and $crema -eq 7442) { "OK" } else { "MISSING FILES: copy again" }
+```
+
+**Run the fine-tuning.** Pick the preset from the `VRAM ... GB total` number on the GPU line of
+`python gpu\check_env.py`:
+
+| VRAM total | preset |
+|---|---|
+| under 14 GB | `gpu_12gb` |
+| 14 to 22 GB (a "16 GB" card reports ~15-16) | `gpu_16gb` |
+| 22 GB or more (a "24 GB" card reports ~23.5-24) | `gpu_24gb` |
+
+```powershell
+python gpu\finetune_ser.py --preset gpu_16gb
+```
+- Each run gets its own folder `gpu\outputs\ser_finetune\<preset>_<date_time>\` with `metrics.csv`
+  (one line per epoch), `best\` (best checkpoint by validation macro-F1) and `last.pt` (for resuming).
+  Budget about 5 GB of disk per hubert-large run.
+- If the session ends mid-run: `python gpu\finetune_ser.py --resume gpu\outputs\ser_finetune\<run folder>`
+  continues from the last finished epoch.
+- At the end it evaluates `best\` once on the test split and writes
+  `results\metrics\ser_finetune_test_<run>.csv`. Bring home that CSV, `metrics.csv`, `test_summary.json`
+  and the `best\` folder (~1.3 GB): `last.pt` is not needed once the run is finished.
+
+---
+
 ## 3. Bringing results home
 
 - **Env report / small logs:** commit from your PC after copying, or upload to OneDrive.
