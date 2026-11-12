@@ -1,0 +1,16 @@
+set,file,emotion,reference,text,wer,skipped,reason,audio_seconds,asr_seconds,model
+my_voice_v2,data/my_voice_v2/01_happy.wav,,,I finally finished my assignment and it came out great.,,False,,5.0,1.1028,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/02_happy.wav,,,My friends are coming out tonight. I can't wait.,,False,,5.0,1.0407,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/03_angry.wav,,,Someone took me parking spot again. It's annoying.,,False,,5.0,1.0012,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/04_happy.wav,,,"But you know what? Anyway, the weather is really nice today.",,False,,5.0,1.1025,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/05_sad.wav,,,But I didn't hear back from the job I really wanted.,,False,,5.0,1.2749,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/06_sad.wav,,,I've been feeling pretty lonely this week.,,False,,5.0,0.9603,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/07_angry.wav,,,You know what? My project member didn't do his part again and so frustrated.,,False,,5.0,1.2675,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/08_sad.wav,,,I don't think I'm good enough for this job.,,False,,5.0,1.0819,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/09_angry.wav,,,I'm died of fixing everyone's everyone else,,False,,5.0,0.9295,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/10_angry.wav,,,Nobody even listens when I say something.,,False,,5.0,0.932,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/11_sad.wav,,,I just miss how things used to be.,,False,,5.0,1.0277,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/12_sad.wav,,,I'm really tired and I don't know what to do.,,False,,5.0,1.0932,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/13_angry.wav,,,This whole week has been ridiculous.,,False,,5.0,0.8898,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/14_happy.wav,,,"Okay, talking about all this actually helped a bit.",,False,,5.0,1.0873,openai/whisper-tiny.en
+my_voice_v2,data/my_voice_v2/15_happy.wav,,,I'm going to get some Ford and relax now. Thanks.,,False,,5.0,1.0551,openai/whisper-tiny.en

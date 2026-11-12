@@ -36,6 +36,8 @@ base:
   # Speech recognition (turns the user's audio into text).
   asr:
     language: "en"     # transcribe as English; skips language detection
+    silence_dbfs: -45        # a 25 ms frame counts as speech only if its loudness (RMS) is above this level (0 = loudest possible)
+    min_speech_seconds: 0.3  # a turn with less speech than this is skipped as silence and never sent to Whisper
 
   # Speech emotion recognition (guesses the emotion from how the user sounds).
   ser:
