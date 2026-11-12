@@ -18,8 +18,11 @@ Usage (works from any folder):
     python gpu/ser_gpu.py --preset smoke_cpu --compare \
         --models superb/hubert-large-superb-er superb/wav2vec2-base-superb-er \
         --folders data/my_voice data/my_voice_v2
+    python gpu/ser_gpu.py --preset smoke_cpu --compare \
+        --models superb/hubert-large-superb-er superb/wav2vec2-base-superb-er --manifest-split test
 
-Output of --compare: results/metrics/ser_candidates_my_voice.csv
+Output of --compare: results/metrics/ser_candidates_my_voice.csv (folders) or
+results/metrics/ser_candidates_ravdess_<split>.csv (--manifest-split; Check A wrapper sanity rule)
 (a timestamp is added to the name if that file already exists; nothing is overwritten).
 """
 
@@ -53,6 +56,19 @@ PASS_RATIO = 10 / 15
 SMALLER_MODEL = "superb/wav2vec2-base-superb-er"
 XGB_REFERENCE = "XGBoost baseline on my_voice_v2: 5/15"
 CSV_NAME = "ser_candidates_my_voice"
+# Check A (wrapper sanity check on RAVDESS), fixed in advance: OK if accuracy >= 50% and no class gets > 70% of predictions.
+MANIFEST = "data/manifests/manifest.csv"
+MANIFEST_CSV_PREFIX = "ser_candidates_ravdess_"
+WRAPPER_MIN_ACC = 0.50
+WRAPPER_MAX_SHARE = 0.70
+# Check A2 (--verify), fixed in advance: WRAPPER CORRECT if our probs match the HF pipeline within 1e-3 on every clip.
+VERIFY_MODELS = ["superb/hubert-large-superb-er", "superb/wav2vec2-base-superb-er"]
+VERIFY_N_CLIPS = 20
+VERIFY_SEED = 42
+VERIFY_TOL = 1e-3
+DEMO_REPO, DEMO_CONFIG, DEMO_SPLIT = "anton-l/superb_demo", "er", "session1"
+VERIFY_FIELDS = ["model", "check", "file", "true_label", "pred_label", "compare_label", "max_abs_diff",
+                 "confidence", "p_neutral", "p_happy", "p_angry", "p_sad"]
 CSV_FIELDS = ["model", "folder", "file", "true_label", "pred_label", "confidence", "margin",
               "p_neutral", "p_happy", "p_angry", "p_sad", "seconds"]
 
@@ -123,7 +139,8 @@ class SERModel:
             logits = self.model(**inputs).logits[0]
         return build_output(logits.float().cpu().numpy(), self.index_map)
 
-    def predict_array(self, y, sr) -> dict:
+    def preprocess(self, y, sr, trim=True) -> np.ndarray:
+        """Mono, 16 kHz, trim silence (unless trim=False), cut to max_seconds. No loudness normalization."""
         import librosa
 
         y = np.asarray(y, dtype=np.float32)
@@ -131,17 +148,21 @@ class SERModel:
             y = y.mean(axis=int(np.argmin(y.shape)))
         if sr != SAMPLE_RATE:
             y = librosa.resample(y, orig_sr=sr, target_sr=SAMPLE_RATE)
-        y_trim, _ = librosa.effects.trim(y, top_db=TRIM_TOP_DB)
-        if y_trim.size >= MIN_TRIMMED_SECONDS * SAMPLE_RATE:
-            y = y_trim
+        if trim:
+            y_trim, _ = librosa.effects.trim(y, top_db=TRIM_TOP_DB)
+            if y_trim.size >= MIN_TRIMMED_SECONDS * SAMPLE_RATE:
+                y = y_trim
         y = y[: int(self.max_seconds * SAMPLE_RATE)]
-        return self._infer(np.ascontiguousarray(y, dtype=np.float32))
+        return np.ascontiguousarray(y, dtype=np.float32)
 
-    def predict_file(self, path) -> dict:
+    def predict_array(self, y, sr, trim=True) -> dict:
+        return self._infer(self.preprocess(y, sr, trim))
+
+    def predict_file(self, path, trim=True) -> dict:
         import soundfile as sf
 
         y, sr = sf.read(str(path), dtype="float32")
-        return self.predict_array(y, sr)
+        return self.predict_array(y, sr, trim)
 
 
 # Command line
@@ -167,19 +188,42 @@ def _rel(path) -> str:
         return path.as_posix()
 
 
-def _new_csv_path() -> Path:
+def _new_csv_path(name=CSV_NAME) -> Path:
     out_dir = code_path("results/metrics")
-    path = out_dir / f"{CSV_NAME}.csv"
+    path = out_dir / f"{name}.csv"
     if path.exists():
-        path = out_dir / f"{CSV_NAME}_{datetime.datetime.now():%Y%m%d_%H%M%S}.csv"
+        path = out_dir / f"{name}_{datetime.datetime.now():%Y%m%d_%H%M%S}.csv"
     return path
+
+
+def _folder_clips(folder):
+    """[(path, true label or None)] for every .wav in folder, sorted; label from the file name."""
+    return [(wav, true_label_from_filename(wav.name)) for wav in sorted(folder.glob("*.wav"))]
+
+
+def _manifest_clips(split):
+    """[(path, label)] for the manifest rows where split == split, in manifest order."""
+    with open(code_path(MANIFEST), newline="", encoding="utf-8") as f:
+        rows = [r for r in csv.DictReader(f) if r["split"] == split]
+    if not rows:
+        raise ValueError(f"No rows with split == {split!r} in {MANIFEST}")
+    for r in rows:
+        if r["label"] not in CLASSES:
+            raise ValueError(f"Manifest label {r['label']!r} ({r['wav_path']}) is not one of {CLASSES}")
+    return [(_resolve(r["wav_path"]), r["label"]) for r in rows]
+
+
+def _prediction_shares(rows) -> dict:
+    return {c: sum(r["pred_label"] == c for r in rows) / len(rows) for c in CLASSES}
 
 
 def _print_folder_summary(model, folder, rows):
     scored = [r for r in rows if r["true_label"]]
     correct = sum(r["true_label"] == r["pred_label"] for r in scored)
-    print(f"\n[{model}]  {folder}: {correct}/{len(scored)} correct "
+    pct = f" = {correct / len(scored):.1%}" if scored else ""
+    print(f"\n[{model}]  {folder}: {correct}/{len(scored)} correct{pct} "
           f"({len(rows)} clips, {len(rows) - len(scored)} without a true label)")
+    print("  share of predictions: " + "  ".join(f"{c} {s:.1%}" for c, s in _prediction_shares(rows).items()))
     print(f"  mean confidence {np.mean([r['confidence'] for r in rows]):.3f}   "
           f"mean seconds/clip {np.mean([r['seconds'] for r in rows]):.3f}")
     print("  confusion (rows = true, cols = predicted):")
@@ -212,35 +256,32 @@ def _pick_winner(models, acc):
     return winner, ratio(winner, V2_FOLDER) >= PASS_RATIO, why
 
 
-def compare(cfg, device, dtype, models, folders):
-    folder_paths = [_resolve(f) for f in folders]
-    for fp in folder_paths:
-        if not fp.is_dir():
-            raise FileNotFoundError(f"Folder not found: {fp}")
-    out_path = _new_csv_path()
-    rows, acc = [], {}
-
+def _run_sources(cfg, device, dtype, models, sources, out_path):
+    """sources = [(name, [(path, true label or None), ...])]. Runs every model on every clip,
+    prints a summary per model x source, writes the per-clip CSV. Returns (acc, rows_by_key)."""
+    rows, acc, by_key = [], {}, {}
     for model_name in models:
         load = StageTimer()
         with load("load"):
             ser = SERModel(cfg, device, dtype, model_name=model_name)
         print(f"\n=== {model_name}  (loaded + warm-up in {load.times['load']:.1f}s on {device}) ===")
-        for fp in folder_paths:
-            folder = _rel(fp)
+        for source, clips in sources:
             folder_rows = []
-            for wav in sorted(fp.glob("*.wav")):
+            for wav, true_label in clips:
                 timer = StageTimer()
                 with timer("ser"):
                     out = ser.predict_file(wav)
                 folder_rows.append({
-                    "model": model_name, "folder": folder, "file": wav.name,
-                    "true_label": true_label_from_filename(wav.name) or "",
+                    "model": model_name, "folder": source,
+                    "file": wav.name if not source.startswith("manifest:") else _rel(wav),
+                    "true_label": true_label or "",
                     "pred_label": out["label"],
                     "confidence": round(out["confidence"], 4), "margin": round(out["margin"], 4),
                     **{f"p_{c}": round(out["probs"][c], 4) for c in CLASSES},
                     "seconds": round(timer.times["ser"], 4),
                 })
-            acc[(model_name, folder)] = _print_folder_summary(model_name, folder, folder_rows)
+            acc[(model_name, source)] = _print_folder_summary(model_name, source, folder_rows)
+            by_key[(model_name, source)] = folder_rows
             rows.extend(folder_rows)
         del ser
 
@@ -249,6 +290,152 @@ def compare(cfg, device, dtype, models, folders):
         writer.writeheader()
         writer.writerows(rows)
     print(f"\nPer-clip rows: {out_path}")
+    return acc, by_key
+
+
+def compare_manifest(cfg, device, dtype, models, split):
+    """Check A: wrapper sanity check on a manifest split (RAVDESS), with its own fixed rule."""
+    source = f"manifest:{split}"
+    sources = [(source, _manifest_clips(split))]
+    out_path = _new_csv_path(f"{MANIFEST_CSV_PREFIX}{split}")
+    acc, by_key = _run_sources(cfg, device, dtype, models, sources, out_path)
+
+    print(f"\n=== Wrapper check (rule fixed in advance): OK if accuracy >= {WRAPPER_MIN_ACC:.0%} "
+          f"AND no class gets > {WRAPPER_MAX_SHARE:.0%} of predictions ===")
+    for m in models:
+        c, n = acc[(m, source)]
+        shares = _prediction_shares(by_key[(m, source)])
+        top = max(shares, key=shares.get)
+        ok = c / n >= WRAPPER_MIN_ACC and shares[top] <= WRAPPER_MAX_SHARE
+        print(f"  {m:40s} accuracy {c}/{n} = {c / n:.1%}   largest share {top} {shares[top]:.1%}   "
+              f"-> {'wrapper OK' if ok else 'possible wrapper bug'}")
+
+
+def _pipeline_probs(clf, y) -> dict:
+    """Run a transformers audio-classification pipeline on a 16 kHz array; probs summed into CLASSES."""
+    out = clf({"raw": y, "sampling_rate": SAMPLE_RATE}, top_k=None)
+    probs = {c: 0.0 for c in CLASSES}
+    for d in out:
+        probs[map_labels({0: d["label"]})[0]] += float(d["score"])
+    return probs
+
+
+def _max_diff(p, q) -> float:
+    return max(abs(p[c] - q[c]) for c in CLASSES)
+
+
+def _load_demo_clips():
+    """[(file name, waveform, sr, true class)] from the model-card demo set, read with soundfile (no datasets decoding)."""
+    import io
+
+    import soundfile as sf
+    from datasets import Audio, load_dataset
+
+    ds = load_dataset(DEMO_REPO, DEMO_CONFIG, split=DEMO_SPLIT)
+    names = ds.features["label"].names
+    ds = ds.cast_column("audio", Audio(decode=False))
+    clips = []
+    for row in ds:
+        a = row["audio"]
+        raw = a.get("bytes") or Path(a["path"]).read_bytes()
+        y, sr = sf.read(io.BytesIO(raw), dtype="float32")
+        clips.append((Path(a.get("path") or row["file"]).name, y, sr, map_labels({0: names[row["label"]]})[0]))
+    return clips
+
+
+def verify(cfg, device, dtype, models):
+    """Check A2: (b) ours vs HF pipeline on the same arrays, (c) trim on vs off, (d) model-card demo set."""
+    import random
+
+    import soundfile as sf
+    import torch
+    from transformers import pipeline
+
+    def row(model, check, file, true, out, compare_label="", diff=""):
+        return {"model": model, "check": check, "file": file, "true_label": true or "",
+                "pred_label": out["label"], "compare_label": compare_label,
+                "max_abs_diff": f"{diff:.2e}" if diff != "" else "", "confidence": round(out["confidence"], 4),
+                **{f"p_{c}": round(out["probs"][c], 4) for c in CLASSES}}
+
+    if device != "cpu" or dtype != torch.float32:
+        print(f"NOTE: our model runs on {device}/{dtype}; the pipeline runs on CPU float32, "
+              f"so the {VERIFY_TOL:g} tolerance assumes --preset smoke_cpu.")
+    test_clips = _manifest_clips("test")
+    sample = random.Random(VERIFY_SEED).sample(test_clips, VERIFY_N_CLIPS)
+    demo = _load_demo_clips()
+    out_path = _new_csv_path("ser_verify")
+    rows, verdicts = [], {}
+
+    for model_name in models:
+        ser = SERModel(cfg, device, dtype, model_name=model_name)
+        clf = pipeline("audio-classification", model=model_name, top_k=None, device="cpu")
+        print(f"\n=== {model_name} ===")
+
+        # (b) same preprocessed array -> ours vs pipeline
+        print(f"(b) ours vs transformers pipeline on {VERIFY_N_CLIPS} RAVDESS test clips (seed {VERIFY_SEED}), same array:")
+        diffs = []
+        for wav, true in sample:
+            y, sr = sf.read(str(wav), dtype="float32")
+            y16 = ser.preprocess(y, sr)
+            ours = ser._infer(y16)
+            theirs = _pipeline_probs(clf, y16)
+            d = _max_diff(ours["probs"], theirs)
+            diffs.append((d, _rel(wav), ours["label"], max(theirs, key=theirs.get)))
+            rows.append(row(model_name, "pipeline_vs_ours", _rel(wav), true, ours, max(theirs, key=theirs.get), d))
+        for d, f, a, b in diffs:
+            print(f"    {f:48s} ours={a:7s} pipeline={b:7s} max|diff|={d:.2e}")
+        worst = max(diffs)
+        ok = worst[0] < VERIFY_TOL
+        verdicts[model_name] = (ok, worst)
+        print(f"    max over clips: {worst[0]:.2e}  ->  {'WRAPPER CORRECT' if ok else 'WRAPPER BUG'}"
+              + ("" if ok else f"  (largest difference: {worst[1]})"))
+
+        # (c) trim on vs off on all test clips
+        changed = []
+        for wav, true in test_clips:
+            on, off = ser.predict_file(wav, trim=True), ser.predict_file(wav, trim=False)
+            if on["label"] != off["label"]:
+                changed.append((_rel(wav), true, on["label"], off["label"]))
+            rows.append(row(model_name, "trim_on_vs_off", _rel(wav), true, on, off["label"],
+                            _max_diff(on["probs"], off["probs"])))
+        acc_on = sum(r["pred_label"] == r["true_label"] for r in rows
+                     if r["model"] == model_name and r["check"] == "trim_on_vs_off")
+        acc_off = sum(r["compare_label"] == r["true_label"] for r in rows
+                      if r["model"] == model_name and r["check"] == "trim_on_vs_off")
+        print(f"(c) trim OFF vs ON on {len(test_clips)} RAVDESS test clips: {len(changed)} predictions change   "
+              f"(accuracy trim on {acc_on}/{len(test_clips)}, trim off {acc_off}/{len(test_clips)})")
+        for f, t, a, b in changed:
+            print(f"    {f:48s} true={t:6s} on={a:7s} off={b}")
+
+        # (d) model-card demo set
+        correct = 0
+        print(f"(d) {DEMO_REPO} / {DEMO_CONFIG} / {DEMO_SPLIT} (IEMOCAP, the models' home data):")
+        for name, y, sr, true in demo:
+            out = ser.predict_array(y, sr)
+            correct += out["label"] == true
+            rows.append(row(model_name, "superb_demo", name, true, out))
+            print(f"    {name:30s} true={true:7s} pred={out['label']:7s} conf={out['confidence']:.3f}"
+                  f"  {'ok' if out['label'] == true else 'WRONG'}")
+        print(f"    {correct}/{len(demo)} correct")
+        del ser, clf
+
+    with open(out_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=VERIFY_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"\nRows: {out_path}")
+    print(f"\n=== Verdict (rule fixed in advance: max|diff| < {VERIFY_TOL:g} on every clip in (b)) ===")
+    for m, (ok, worst) in verdicts.items():
+        print(f"  {m:40s} max|diff| {worst[0]:.2e}  -> {'WRAPPER CORRECT' if ok else 'WRAPPER BUG (' + worst[1] + ')'}")
+
+
+def compare(cfg, device, dtype, models, folders):
+    folder_paths = [_resolve(f) for f in folders]
+    for fp in folder_paths:
+        if not fp.is_dir():
+            raise FileNotFoundError(f"Folder not found: {fp}")
+    sources = [(_rel(fp), _folder_clips(fp)) for fp in folder_paths]
+    acc, _ = _run_sources(cfg, device, dtype, models, sources, _new_csv_path())
 
     print("\n=== Decision (rule fixed in advance) ===")
     print(f"  winner = higher accuracy on {V2_FOLDER}, must be >= 10/15 to pass; "
@@ -272,10 +459,18 @@ def _main():
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--file", help="one .wav file to classify")
     mode.add_argument("--compare", action="store_true", help="run every model on every .wav in --folders")
+    mode.add_argument("--verify", action="store_true",
+                      help="Check A2: compare against the transformers pipeline, trim on/off, model-card demo set")
     parser.add_argument("--models", nargs="+", help="model names for --compare (default: ser.candidates, else ser.model)")
-    parser.add_argument("--folders", nargs="+", default=[V1_FOLDER, V2_FOLDER],
+    parser.add_argument("--folders", nargs="+",
                         help="folders of .wav clips, relative to Code/ (default: data/my_voice data/my_voice_v2)")
+    parser.add_argument("--manifest-split", metavar="SPLIT",
+                        help=f"--compare on the {MANIFEST} rows with this split (e.g. test) instead of folders")
     args = parser.parse_args()
+    if args.manifest_split and args.folders:
+        parser.error("use either --folders or --manifest-split, not both")
+    if args.manifest_split and not args.compare:
+        parser.error("--manifest-split works with --compare only")
 
     _load_env()
     try:
@@ -295,8 +490,15 @@ def _main():
         print(json.dumps({**out, "seconds": round(timer.times["ser"], 4)}, indent=2))
         return 0
 
+    if args.verify:
+        verify(cfg, device, dtype, args.models or VERIFY_MODELS)
+        return 0
+
     models = args.models or cfg["ser"].get("candidates") or [cfg["ser"]["model"]]
-    compare(cfg, device, dtype, models, args.folders)
+    if args.manifest_split:
+        compare_manifest(cfg, device, dtype, models, args.manifest_split)
+    else:
+        compare(cfg, device, dtype, models, args.folders or [V1_FOLDER, V2_FOLDER])
     return 0
 
 
