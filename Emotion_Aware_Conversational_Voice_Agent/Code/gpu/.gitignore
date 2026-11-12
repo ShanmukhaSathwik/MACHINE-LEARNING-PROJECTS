@@ -1,4 +1,6 @@
-# GPU outputs (checkpoints, logs, audio) are large: keep them out of git.
-# Results go to the private Hugging Face repo instead.
+# GPU outputs (run folders, checkpoints, logs, audio) are large: keep them out of git.
+# At home they live outside the repo, in $GPU_OUTPUTS_DIR (see device.outputs_dir and SETUP_GPU.md);
+# on the GPU machine (variable unset) they land here, still ignored.
+# Env reports (env_report_*.json) are small and always written here by check_env.py: they stay tracked.
 outputs/*
 !outputs/env_report_*.json

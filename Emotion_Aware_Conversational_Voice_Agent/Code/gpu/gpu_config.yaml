@@ -11,6 +11,8 @@
 #   3. smoke_cpu
 #
 # Relative paths below are relative to Code/ (the folder that holds gpu/ and scripts/).
+# Paths under gpu/outputs/ go to $GPU_OUTPUTS_DIR instead when that variable is set (device.code_path);
+# unset (the GPU machine), they stay in gpu/outputs/.
 
 base:
   seed: 42             # one random seed for python, numpy and torch, so runs repeat

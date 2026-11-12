@@ -15,6 +15,8 @@ Usage (from Code/):
 
 Output:
     printed report + gpu/outputs/env_report_<computer>_<YYYYMMDD_HHMM>.json
+    Env reports always go to the repo's gpu/outputs/ (tracked in git), even when $GPU_OUTPUTS_DIR is set.
+    The report still shows the resolved outputs folder (device.outputs_dir()), to check that variable.
 """
 
 import datetime
@@ -28,8 +30,29 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-OUT_DIR = HERE / "outputs"
 ENV_FILE = HERE.parent / ".env"  # Code/.env (gitignored)
+REPORT_DIR = HERE / "outputs"    # env reports always go here (tracked in git), whatever GPU_OUTPUTS_DIR says
+
+
+def resolved_outputs_dir() -> str:
+    """For the report only: where the other GPU scripts write (device.outputs_dir()). device.py imports torch,
+    numpy and yaml, so before they are installed this returns a note instead of failing."""
+    try:
+        from device import outputs_dir
+        return str(outputs_dir())
+    except Exception as e:  # noqa: BLE001
+        return f"unknown (device.py not importable: {e})"
+
+
+def save_report(report, out_dir=None) -> Path:
+    """Write the report as JSON to out_dir (default REPORT_DIR, read at call time). Returns the file path."""
+    out_dir = Path(out_dir or REPORT_DIR)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+    name = report["system"]["computer"].replace(" ", "_")
+    out = out_dir / f"env_report_{name}_{stamp}.json"
+    out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return out
 
 
 def load_env_file():
@@ -200,6 +223,7 @@ def print_report(r):
     print(f"Disk ({d['path']}): {d['free_gb']} GB free of {d['total_gb']} GB")
     if d["warning"]:
         print(f"WARNING: {d['warning']}")
+    print(f"outputs        : {r['outputs_dir']}   (runs, checkpoints, logs; env reports stay in gpu/outputs)")
 
     h = r["huggingface"]
     print(f"Hugging Face   : {'logged in as ' + h['user'] if h['logged_in'] else 'not logged in'}"
@@ -220,16 +244,12 @@ def main():
         "huggingface": hf_info(),
     }
     report["recommendation"] = recommendation(report["torch"])
+    report["outputs_dir"] = resolved_outputs_dir()
 
     print_report(report)
 
     try:
-        OUT_DIR.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-        name = report["system"]["computer"].replace(" ", "_")
-        out = OUT_DIR / f"env_report_{name}_{stamp}.json"
-        out.write_text(json.dumps(report, indent=2), encoding="utf-8")
-        print(f"Saved: {out}")
+        print(f"Saved: {save_report(report)}")
     except Exception as e:  # noqa: BLE001
         print(f"Could not save report: {e}")
 

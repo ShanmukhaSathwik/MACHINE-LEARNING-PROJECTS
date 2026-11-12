@@ -31,6 +31,16 @@ def test_row_selection_and_no_speaker_leak():
     assert ft.speaker_leaks(leaky) == {"x": ["test", "train"]}
 
 
+def test_resume_dir_relative_and_absolute(monkeypatch, tmp_path):
+    rel = "gpu/outputs/ser_finetune/gpu_16gb_20261112_1400"
+    assert ft.resume_dir(rel) == code_path("") / rel                         # unset: as before
+    monkeypatch.setenv("GPU_OUTPUTS_DIR", str(tmp_path / "gpu_outputs"))
+    assert ft.resume_dir(rel) == tmp_path / "gpu_outputs" / "ser_finetune" / "gpu_16gb_20261112_1400"
+    absolute = tmp_path / "C_drive" / "ser_finetune" / "gpu_16gb_20261112_1400"
+    assert ft.resume_dir(absolute) == absolute                              # absolute: used as given
+    assert ft.resume_dir(str(absolute)) == absolute
+
+
 def test_label_ids_follow_model_id2label():
     assert ft.label_ids({0: "neu", 1: "hap", 2: "ang", 3: "sad"}) == {"neutral": 0, "happy": 1, "angry": 2, "sad": 3}
     shuffled = ft.label_ids({0: "sad", 1: "neu", 2: "ang", 3: "hap"})   # a different model order is kept as-is

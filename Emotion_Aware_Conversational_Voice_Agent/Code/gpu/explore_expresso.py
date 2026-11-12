@@ -11,7 +11,7 @@ Usage (from Code/, venv active):
     python gpu/explore_expresso.py
     python gpu/explore_expresso.py --per-cell 5        # more samples per speaker x style
 
-Outputs (gpu/outputs/expresso/, ignored by git):
+Outputs (<outputs>/expresso/; <outputs> = $GPU_OUTPUTS_DIR if set, else gpu/outputs, ignored by git):
     style_table.csv        speaker x style: clips, minutes
     samples/*.wav|flac     a few clips per speaker x style
     samples/samples.csv    file, speaker, style, duration, transcript
@@ -105,7 +105,9 @@ def main():
     args = ap.parse_args()
 
     load_env()
-    out_dir = HERE / "outputs" / "expresso"
+    from device import outputs_dir   # imports torch; this script already needs the GPU kit libraries
+    print(f"outputs : {outputs_dir()}")
+    out_dir = outputs_dir() / "expresso"
     sample_dir = out_dir / "samples"
     sample_dir.mkdir(parents=True, exist_ok=True)
 

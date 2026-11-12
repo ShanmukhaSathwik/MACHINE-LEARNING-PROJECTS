@@ -67,3 +67,62 @@ def test_stage_timer_records_positive_time():
     with timer("work"):
         time.sleep(0.01)
     assert timer.times["work"] > 0
+
+
+# Outputs folder: $GPU_OUTPUTS_DIR if set, else gpu/outputs (conftest unsets it for every test)
+
+GPU_OUTPUTS = CODE_DIR / "gpu" / "outputs"
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_outputs_dir_unset_or_empty_is_gpu_outputs(monkeypatch, value):
+    if value is not None:
+        monkeypatch.setenv(device.OUTPUTS_ENV_VAR, value)
+    assert device.outputs_dir() == GPU_OUTPUTS
+    # every gpu/outputs path is exactly what it was before (CODE_DIR / relative)
+    ft = device.load_config("gpu_16gb")["finetune"]
+    for rel in (ft["output_dir"], "gpu/outputs/voice_refs", "gpu/outputs"):
+        assert device.code_path(rel) == CODE_DIR / rel
+
+
+def test_outputs_dir_env_set_routes_outputs_only(monkeypatch, tmp_path):
+    target = tmp_path / "emotion-agent" / "gpu_outputs"      # does not exist yet
+    monkeypatch.setenv(device.OUTPUTS_ENV_VAR, str(target))
+    assert device.outputs_dir() == target and target.is_dir()  # created
+    cfg = device.load_config("gpu_16gb")
+    assert device.code_path(cfg["finetune"]["output_dir"]) == target / "ser_finetune"
+    assert device.code_path(cfg["tts"]["voice_refs_dir"]) == target / "voice_refs"
+    assert device.code_path("gpu/outputs") == target
+    # everything else stays in the repo
+    assert device.code_path("results/metrics") == CODE_DIR / "results" / "metrics"
+    assert device.code_path(cfg["finetune"]["manifest"]) == CODE_DIR / "data" / "manifests" / "ser_4class.csv"
+    assert device.code_path("gpu/outputs_old/x") == CODE_DIR / "gpu" / "outputs_old" / "x"
+    assert device.code_path("") == CODE_DIR
+
+
+def test_outputs_dir_relative_value_is_from_code_dir(monkeypatch, tmp_path):
+    monkeypatch.setattr(device, "CODE_DIR", tmp_path)          # keep the created folder out of the repo
+    monkeypatch.setenv(device.OUTPUTS_ENV_VAR, "outs")
+    assert device.outputs_dir() == tmp_path / "outs" and (tmp_path / "outs").is_dir()
+
+
+def test_code_path_keeps_absolute_paths(monkeypatch, tmp_path):
+    run = tmp_path / "gpu_16gb_20261112_1400"
+    assert device.code_path(run) == run
+    monkeypatch.setenv(device.OUTPUTS_ENV_VAR, str(tmp_path / "elsewhere"))
+    assert device.code_path(run) == run
+
+
+def test_check_env_shows_outputs_but_saves_report_in_repo(monkeypatch, tmp_path):
+    import check_env
+
+    assert check_env.REPORT_DIR == GPU_OUTPUTS                     # env reports: repo's gpu/outputs (tracked)
+    assert check_env.resolved_outputs_dir() == str(GPU_OUTPUTS)    # unset: shown as gpu/outputs
+    elsewhere = tmp_path / "gpu_outputs"
+    monkeypatch.setenv(device.OUTPUTS_ENV_VAR, str(elsewhere))
+    assert check_env.resolved_outputs_dir() == str(elsewhere)      # set: the report shows the variable works
+    # ...but the report file ignores it (REPORT_DIR pointed at tmp so the real gpu/outputs is not touched)
+    monkeypatch.setattr(check_env, "REPORT_DIR", tmp_path / "repo_gpu_outputs")
+    out = check_env.save_report({"system": {"computer": "test pc"}, "outputs_dir": str(elsewhere)})
+    assert out.parent == tmp_path / "repo_gpu_outputs" and out.name.startswith("env_report_test_pc_")
+    assert not list(elsewhere.glob("env_report_*"))

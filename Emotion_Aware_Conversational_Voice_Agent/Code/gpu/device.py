@@ -11,9 +11,15 @@ What it gives the other GPU scripts:
   - vram_report()        -> GPU name and memory in GB, or {"device": "cpu"}
   - StageTimer           -> seconds per named pipeline stage
   - setup(preset)        -> (cfg, device, dtype), the one call most scripts need
+  - outputs_dir()        -> where large outputs go: $GPU_OUTPUTS_DIR if set, else gpu/outputs
+  - code_path(rel)       -> config path (relative to Code/) -> absolute; "gpu/outputs/..." goes through outputs_dir()
 
 Preset choice (first match wins): the preset argument, the AGENT_PRESET
 environment variable, then "smoke_cpu".
+
+Outputs folder: set GPU_OUTPUTS_DIR (e.g. C:\\emotion-agent\\gpu_outputs at home) to keep run folders,
+checkpoints and logs outside the repo. Unset (the GPU machine), everything stays in gpu/outputs.
+results/metrics/ is never moved, and check_env.py always writes env reports to gpu/outputs (tracked in git).
 
 Usage (works from any folder):
     python gpu/device.py --list
@@ -39,6 +45,9 @@ CODE_DIR = HERE.parent                    # Code/ (relative paths in the config 
 CONFIG_PATH = HERE / "gpu_config.yaml"
 DEFAULT_PRESET = "smoke_cpu"
 ENV_VAR = "AGENT_PRESET"
+OUTPUTS_ENV_VAR = "GPU_OUTPUTS_DIR"
+DEFAULT_OUTPUTS_DIR = HERE / "outputs"    # Code/gpu/outputs
+OUTPUTS_PREFIX = ("gpu", "outputs")       # config paths starting with gpu/outputs/ are routed to outputs_dir()
 
 DTYPES = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}
 
@@ -75,9 +84,28 @@ def load_config(preset=None) -> dict:
     return cfg
 
 
+def outputs_dir() -> Path:
+    """Folder for large outputs (run folders, checkpoints, logs; env reports stay in gpu/outputs).
+    $GPU_OUTPUTS_DIR if set (created if missing; a relative value is taken relative to Code/),
+    else gpu/outputs, exactly as before (not created here: the scripts create what they write)."""
+    value = os.environ.get(OUTPUTS_ENV_VAR, "").strip()
+    if not value:
+        return DEFAULT_OUTPUTS_DIR
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = CODE_DIR / path
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def code_path(relative) -> Path:
-    """Resolve a config path (relative to Code/) to an absolute path."""
-    return CODE_DIR / relative
+    """Resolve a config path (relative to Code/) to an absolute path. An absolute path is returned as is.
+    A path under gpu/outputs/ (e.g. finetune.output_dir) resolves under outputs_dir() instead, so
+    $GPU_OUTPUTS_DIR moves it; with the variable unset the result is CODE_DIR / relative, as before."""
+    rel = Path(relative)
+    if not rel.is_absolute() and rel.parts[:2] == OUTPUTS_PREFIX:
+        return outputs_dir().joinpath(*rel.parts[2:])
+    return CODE_DIR / rel
 
 
 def pick_device(cfg) -> str:
@@ -192,6 +220,7 @@ def _main():
     print(f"brain       : {json.dumps(cfg['brain'])}")
     for section in ("asr", "ser", "llm", "tts"):
         print(f"{section:12s}: {json.dumps(cfg.get(section))}")
+    print(f"outputs     : {outputs_dir()}")
     print(f"log_dir     : {code_path(cfg['logging']['log_dir'])}")
     print(f"memory_file : {code_path(cfg['logging']['memory_file'])}")
     print(f"vram        : {json.dumps(vram_report())}")

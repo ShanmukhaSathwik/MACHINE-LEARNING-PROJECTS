@@ -21,6 +21,8 @@ What it does:
   7. Checks that ser_gpu.SERModel loads <run_dir>/best/ as model_name (so the agent can use it).
 
 Run folders: gpu/outputs/ser_finetune/<preset>_<YYYYmmdd_HHMM>/ (a suffix is added if it exists).
+With $GPU_OUTPUTS_DIR set (home PC), gpu/outputs/ means that folder instead (device.outputs_dir());
+the test CSV always goes to results/metrics/ in the repo. --resume also takes an absolute run folder path.
 Inside a run, best/ and last.pt are updated as training goes; earlier runs are never touched.
 last.pt holds model + optimizer + scheduler state for --resume (about 3x the model size: ~4 GB for hubert-large).
 
@@ -29,6 +31,7 @@ Usage (works from any folder):
     python gpu/finetune_ser.py --preset gpu_16gb --max-steps 20 --max-train-clips 200 --max-val-clips 50   # GPU sanity run
     python gpu/finetune_ser.py --preset gpu_16gb
     python gpu/finetune_ser.py --resume gpu/outputs/ser_finetune/gpu_16gb_20261112_1400
+    python gpu/finetune_ser.py --resume C:/emotion-agent/gpu_outputs/ser_finetune/gpu_16gb_20261112_1400
 """
 
 import argparse
@@ -48,7 +51,7 @@ import soundfile as sf
 import torch
 import yaml
 
-from device import StageTimer, code_path, setup
+from device import StageTimer, code_path, outputs_dir, setup
 from ser_gpu import CLASSES, SAMPLE_RATE, SERModel, map_labels
 
 SPLITS = ["train", "val", "test"]
@@ -264,6 +267,13 @@ def apply_overrides(ft, args) -> list:
     return applied
 
 
+def resume_dir(path) -> Path:
+    """--resume argument -> run folder. Absolute paths are used as given (e.g. a run under C:\\);
+    relative ones resolve from Code/, with gpu/outputs/... going through outputs_dir() (see code_path)."""
+    path = Path(path)
+    return path if path.is_absolute() else code_path(path)
+
+
 def make_run_id(preset, when, sanity=False) -> str:
     """<preset>_<YYYYmmdd_HHMM>, plus "_sanity" for runs with CLI overrides."""
     return f"{preset}_{when:%Y%m%d_%H%M}" + (SANITY_SUFFIX if sanity else "")
@@ -304,9 +314,9 @@ def run(args):
                               get_linear_schedule_with_warmup)
 
     # Config and run folder
+    print(f"outputs    : {outputs_dir()}")
     if args.resume:
-        run_dir = Path(args.resume)
-        run_dir = run_dir if run_dir.is_absolute() else code_path(run_dir)
+        run_dir = resume_dir(args.resume)
         saved = yaml.safe_load((run_dir / "config_used.yaml").read_text(encoding="utf-8"))
         if args.preset and args.preset != saved["preset"]:
             raise ValueError(f"--preset {args.preset} differs from the run's preset {saved['preset']}")
@@ -549,7 +559,8 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description="Fine-tune a pretrained speech emotion model on ser_4class.csv.")
     parser.add_argument("--preset", help="preset name (default: $AGENT_PRESET, else smoke_cpu)")
-    parser.add_argument("--resume", metavar="RUN_DIR", help="continue a run from its last.pt (same folder, same settings)")
+    parser.add_argument("--resume", metavar="RUN_DIR",
+                        help="continue a run from its last.pt (same folder, same settings); relative or absolute path")
     sanity = parser.add_argument_group("overrides for one quick sanity run (run_id gets the suffix _sanity)")
     sanity.add_argument("--max-steps", type=int, metavar="N", help="stop after N weight updates")
     sanity.add_argument("--max-train-clips", type=int, metavar="N", help="use N random training clips")

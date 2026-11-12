@@ -24,6 +24,21 @@ one work folder that you can delete at the end.
    Your main `requirements.txt` is not changed.
 4. **Token at home:** scripts read `HF_TOKEN` from `Code\.env` (gitignored) automatically.
    `check_env.py` should then say `logged in as <you> (token from: .env)`.
+5. **Large outputs on C: (home PC only).** F: is small, so run folders, checkpoints and reports go to C:.
+   Set the variable once, for your user (no admin needed):
+   ```powershell
+   [Environment]::SetEnvironmentVariable("GPU_OUTPUTS_DIR", "C:\emotion-agent\gpu_outputs", "User")
+   ```
+   Then **fully restart VS Code** (close every window), so its terminals pick the variable up. Check in a new terminal:
+   ```powershell
+   $env:GPU_OUTPUTS_DIR          # -> C:\emotion-agent\gpu_outputs
+   python gpu\check_env.py       # the "outputs" line shows the same folder (created if missing)
+   ```
+   With it set, run folders, checkpoints and logs go there instead of `gpu\outputs\`. Two things stay in the repo:
+   `results\metrics\*.csv`, and the env reports (`check_env.py` always saves `env_report_*.json` to the repo's
+   `gpu\outputs\`, because git tracks them). Old runs already in `gpu\outputs\` stay where they are.
+   To `--resume` one of them, give its full path (`F:\...\Code\gpu\outputs\ser_finetune\<run>`).
+   **The GPU machine does not set this variable**, so there everything stays in `gpu\outputs\`.
 
 ---
 
@@ -84,17 +99,23 @@ pip install -r gpu\requirements_gpu.txt
 These last only while this PowerShell window is open — nothing is saved on the machine.
 ```powershell
 $env:HF_HOME  = "$WORK\hf_cache"        # model/dataset downloads go here, not C:
-$env:HF_TOKEN = Read-Host "Paste HF token"   # not written to disk
+$env:HF_TOKEN = Read-Host "Paste HF token"   # OPTIONAL in session 1 (see below); not written to disk
 ```
+**HF_TOKEN is optional for session 1:** `superb/hubert-large-superb-er` is not gated, so the
+fine-tuning downloads it without a token. The token is only needed later, for `sesame/csm-1b`.
+If you skip it, just don't run the `Read-Host` line.
+
 Repeat 1.7 in every new PowerShell window.
 Do **not** copy your `.env` to this machine: a typed-in session variable leaves nothing behind.
 
 ### 1.8 Verify
+Console output is saved to a text file with `Tee-Object` (it still shows on screen), so you can bring it home:
 ```powershell
-python gpu\check_env.py
+python -u gpu\check_env.py | Tee-Object -FilePath session1_check_env.txt
 ```
 Expect: `CUDA available: True`, your GPU name and VRAM, all libraries with versions,
-`Hugging Face: logged in as <you>`, and a recommendation line.
+`Hugging Face: logged in as <you>` (or `not logged in` if you skipped the token, which is fine for session 1),
+and a recommendation line.
 The report is saved to `gpu\outputs\env_report_<computer>_<time>.json` — bring it home (section 3).
 
 **If CUDA shows False:** torch is the CPU build. Run
@@ -111,8 +132,8 @@ git pull
 cd Emotion_Aware_Conversational_Voice_Agent\Code
 .\.venv-gpu\Scripts\Activate.ps1
 $env:HF_HOME  = "$WORK\hf_cache"
-$env:HF_TOKEN = Read-Host "Paste HF token"
-python gpu\check_env.py
+$env:HF_TOKEN = Read-Host "Paste HF token"   # only needed once the session uses sesame/csm-1b
+python -u gpu\check_env.py | Tee-Object -FilePath session<N>_check_env.txt   # <N> = session number
 ```
 If the professor cleaned the folder, redo section 1 (downloads are the slow part).
 
@@ -133,6 +154,8 @@ robocopy data\raw E:\ser_audio\raw *.wav /S /XD .git
 
 **On the GPU machine: copy into the same paths** (USB letter may differ there):
 ```powershell
+# New PowerShell window? Set $WORK again first (same folder as in 1.2):
+$WORK = "D:\emotion-agent"
 cd $WORK\repo\Emotion_Aware_Conversational_Voice_Agent\Code
 robocopy E:\ser_audio\raw data\raw *.wav /S
 ```
@@ -156,8 +179,10 @@ if ($rav -eq 1440 -and $crema -eq 7442) { "OK" } else { "MISSING FILES: copy aga
 
 **First, a 2-minute sanity run** (20 weight updates on 200 training clips, 50 validation clips):
 ```powershell
-python gpu\finetune_ser.py --preset gpu_16gb --max-steps 20 --max-train-clips 200 --max-val-clips 50
+python -u gpu\finetune_ser.py --preset gpu_16gb --max-steps 20 --max-train-clips 200 --max-val-clips 50 | Tee-Object -FilePath session1_sanity.txt
 ```
+(`Tee-Object` saves only normal output. A crash's `ERROR:` line and traceback go to stderr, so they show on
+screen but not in the file: if something fails, copy the screen text or take a photo.)
 Check in the output:
 - the `device` line shows `cuda` and `mixed precision: bfloat16` (or `float16` on older GPUs), not `off`;
 - the epoch line prints `peak VRAM ... GB`;
@@ -170,26 +195,69 @@ its test numbers mean nothing.
 
 **Then the real run:**
 ```powershell
-python gpu\finetune_ser.py --preset gpu_16gb
+python -u gpu\finetune_ser.py --preset gpu_16gb | Tee-Object -FilePath session1_train.txt
 ```
 If the sanity run needed `--num-workers 0`, add it here too (the real run then gets `_sanity` in its name as well;
 or set `num_workers: 0` for that preset in `gpu\gpu_config.yaml`).
 - Each run gets its own folder `gpu\outputs\ser_finetune\<preset>_<date_time>\` with `metrics.csv`
   (one line per epoch), `best\` (best checkpoint by validation macro-F1) and `last.pt` (for resuming).
-  Budget about 5 GB of disk per hubert-large run.
-- If the session ends mid-run: `python gpu\finetune_ser.py --resume gpu\outputs\ser_finetune\<run folder>`
-  continues from the last finished epoch.
+  Budget about 5 GB of disk per hubert-large run at rest (`best\` ~1.3 GB + `last.pt` ~3.7 GB). Saving `last.pt`
+  briefly needs about **8.7 GB**, because it is written to `last.pt.tmp` first and then replaces the old file.
+  One whole session (run + ~2.5 GB model cache + ~1.2 GB audio + CUDA torch venv) needs about **15-18 GB**:
+  ask for **20 GB** (the 40 GB+ in 1.2 also covers the later steps).
+- If the session ends mid-run, this continues from the last finished epoch (`-Append` adds to the same log):
+  ```powershell
+  python -u gpu\finetune_ser.py --resume gpu\outputs\ser_finetune\<run folder> | Tee-Object -FilePath session1_train.txt -Append
+  ```
 - At the end it evaluates `best\` once on the test split and writes
-  `results\metrics\ser_finetune_test_<run>.csv`. Bring home that CSV, `metrics.csv`, `test_summary.json`
-  and the `best\` folder (~1.3 GB): `last.pt` is not needed once the run is finished.
+  `results\metrics\ser_finetune_test_<run>.csv` (outside `gpu\outputs\`). Copy everything home with section 3.
 
 ---
 
 ## 3. Bringing results home
 
-- **Env report / small logs:** commit from your PC after copying, or upload to OneDrive.
-- **Checkpoints, adapters, audio:** pushed to your private Hugging Face repo by the
-  training scripts (added in a later step). USB copy of `gpu\outputs\` as backup.
+Nothing is uploaded automatically: `finetune_ser.py` pushes nothing anywhere, so the USB copy below is
+the only way results get home. Do it before cleanup (section 4).
+
+**On the GPU machine** (from `Code\`, venv not needed). The USB is `E:` here; adjust the letter.
+Set `$RUN` to the real run folder name (from `dir gpu\outputs\ser_finetune`):
+```powershell
+$RUN = "gpu_16gb_20261112_1400"     # <- your real run folder
+$USB = "E:\session1"
+New-Item -ItemType Directory -Force $USB | Out-Null
+
+# a) run folder WITHOUT last.pt: brings best\, metrics.csv, config_used.yaml, test_summary.json
+robocopy gpu\outputs\ser_finetune\$RUN $USB\$RUN /E /XF last.pt last.pt.tmp
+
+# b) per-clip test results (written to results\metrics\, NOT under gpu\outputs\)
+Copy-Item results\metrics\ser_finetune_test_$RUN.csv $USB\
+
+# c) session logs (Tee-Object files) + env report
+Copy-Item session1_*.txt $USB\
+Copy-Item gpu\outputs\env_report_*.json $USB\
+```
+robocopy exit code 1 means "files copied" (fine). 8 or higher is a failure.
+
+`last.pt` (~3.7 GB) is only needed for `--resume`. If the professor lets the work folder stay until the
+next session, leave it there. Once the run is finished, it isn't needed at all.
+
+**At home** (from `Code\`, USB as `E:`). The run goes to `$env:GPU_OUTPUTS_DIR` on C: (section 0, step 5),
+not to F:. The test CSV goes into the repo:
+```powershell
+cd F:\projects\Final_project\Emotion_Aware_Conversational_Voice_Agent\Code
+$env:GPU_OUTPUTS_DIR                 # must print C:\emotion-agent\gpu_outputs; if empty, do section 0 step 5 first
+$RUN = "gpu_16gb_20261112_1400"      # same name as above
+robocopy E:\session1\$RUN $env:GPU_OUTPUTS_DIR\ser_finetune\$RUN /E
+Copy-Item E:\session1\ser_finetune_test_$RUN.csv results\metrics\
+Copy-Item E:\session1\session1_*.txt $env:GPU_OUTPUTS_DIR\
+Copy-Item E:\session1\env_report_*.json gpu\outputs\
+```
+To use the model afterwards, its folder is `$env:GPU_OUTPUTS_DIR\ser_finetune\$RUN\best`.
+
+So at home: the run and the session logs go to `$env:GPU_OUTPUTS_DIR`. The test CSV and the GPU machine's env report go
+into the repo (`results\metrics\` and `gpu\outputs\`), next to the env reports `check_env.py` writes at home.
+Env reports are the one output file git tracks (`gpu\.gitignore` ignores the rest). Commit them and the test CSV
+from your PC if you want them in the repo.
 
 ---
 
