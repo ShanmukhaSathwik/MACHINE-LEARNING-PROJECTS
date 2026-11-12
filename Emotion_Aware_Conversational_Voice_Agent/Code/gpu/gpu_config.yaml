@@ -48,6 +48,16 @@ base:
     log_dir: "results/logs"           # one JSON-lines log per session goes here
     memory_file: "data/memories.json" # facts the agent remembers about the user between sessions
 
+  # Long-term memory of facts about the user (scripts/memory_manager.py, scripts/fact_extractor.py).
+  # The file itself is logging.memory_file above.
+  memory:
+    top_k: 3               # most facts recalled per turn and handed to the reply prompt
+    w_similarity: 0.7      # recall score = w_similarity x word overlap with what the user just said ...
+    w_importance: 0.3      # ... + w_importance x how important the fact was when it was stored
+    base_importance: 0.3   # importance of a fact said calmly (or on a turn where the emotion model abstained)
+    spike_threshold: 0.6   # emotional intensity (1 - neutral probability) at or above this counts as a strong emotional moment
+    max_fact_words: 25     # an extracted fact longer than this many words is thrown away
+
   # Fine-tuning the speech emotion model on RAVDESS + CREMA-D (gpu/finetune_ser.py).
   finetune:
     manifest: "data/manifests/ser_4class.csv"   # combined manifest from gpu/build_ser_manifest.py
