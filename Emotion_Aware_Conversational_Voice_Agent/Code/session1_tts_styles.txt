@@ -1,0 +1,53 @@
+preset gpu_24gb  device cuda  dtype bfloat16  model sesame/csm-1b  seed 42  max_new_tokens 150 (12s)
+loaded + warm-up in 11.8s   peak VRAM so far 3.38 GB
+
+Loading ylacombe/expresso (config=read) ... first run downloads it, please wait.
+ex02 styles: confused, default, emphasis, enunciated, essentials, happy, laughing, longform, sad, singing, whisper
+
+VALIDATE: ex02 has no ['sympathetic']; auditioning ['sad', 'default']
+  VALIDATE_sad_ex02_sad_00004 done
+  VALIDATE_sad_ex02_sad_00009 done
+  VALIDATE_default_ex02_default_00001_default1 done
+  VALIDATE_default_ex02_default_00002 done
+CALM: ex02 has no ['calm']; auditioning ['enunciated', 'longform', 'whisper', 'default']
+  CALM_enunciated_ex02_enunciated_00003 done
+  CALM_enunciated_ex02_enunciated_00004 done
+  CALM_longform_ex02_default_00001_longform1 done
+  CALM_longform_ex02_default_00001_longform2 done
+  CALM_whisper_ex02_whisper_00004 done
+  CALM_whisper_ex02_whisper_00006 done
+  CALM_default_ex02_default_00001_default1 done
+  CALM_default_ex02_default_00002 done
+  ENCOURAGE_happy_ex02_happy_00001 done
+  ENCOURAGE_happy_ex02_happy_00002 done
+  ENCOURAGE_laughing_ex02_laughing_00002 done
+  ENCOURAGE_laughing_ex02_laughing_00004 done
+  ENCOURAGE_default_ex02_default_00001_default1 done
+  ENCOURAGE_default_ex02_default_00002 done
+  NEUTRAL_default_ex02_default_00001_default1 done
+  NEUTRAL_default_ex02_default_00002 done
+
+strategy   style       clip id                    gen    RTF  audio  ref transcript
+VALIDATE   sad         ex02_sad_00004           6.94s  2.116  3.28s  Setting seven timers, What timer duration do you want?
+VALIDATE   sad         ex02_sad_00009           5.92s    2.0  2.96s  About the budget projects or the *quarterly* estimates?
+VALIDATE   default     ex02_default_00001_default1   6.20s  1.938  3.20s  There's an alarm tomorrow at twelve fifteen AM, one Frida...
+VALIDATE   default     ex02_default_00002       6.29s   2.07  3.04s  In Rome this evening, it's gonna be partly cloudy, with a...
+CALM       enunciated  ex02_enunciated_00003    9.56s  2.299  4.16s  Remain on Alma street for three miles.
+CALM       enunciated  ex02_enunciated_00004   13.32s  2.107  6.32s  Setting seven timers, What timer duration do you want?
+CALM       longform    ex02_default_00001_longform1  22.19s  1.849 12.00s  Stefani Joanne Angelina Germanotta, born March twenty-eig...
+CALM       longform    ex02_default_00001_longform2  21.98s  1.832 12.00s  I was born at Woodstock. At two minutes past three on the...
+CALM       whisper     ex02_whisper_00004       7.64s   1.91  4.00s  Setting seven timers, What timer duration do you want?
+CALM       whisper     ex02_whisper_00006       9.64s  1.975  4.88s  Because I *was*<articulated> just going to say, ding | di...
+CALM       default     ex02_default_00001_default1   9.21s  2.257  4.08s  There's an alarm tomorrow at twelve fifteen AM, one Frida...
+CALM       default     ex02_default_00002       8.83s  2.207  4.00s  In Rome this evening, it's gonna be partly cloudy, with a...
+ENCOURAGE  happy       ex02_happy_00001         5.40s  2.045  2.64s  There's an alarm tomorrow at twelve fifteen AM, one Frida...
+ENCOURAGE  happy       ex02_happy_00002         6.25s  2.169  2.88s  In Rome this evening, it's gonna be partly cloudy, with a...
+ENCOURAGE  laughing    ex02_laughing_00002      5.39s  2.042  2.64s  In Rome this evening, it's gonna be partly cloudy, with a...
+ENCOURAGE  laughing    ex02_laughing_00004      7.45s  1.863  4.00s  Setting seven timers, What timer duration do you want?
+ENCOURAGE  default     ex02_default_00001_default1   5.08s  1.925  2.64s  There's an alarm tomorrow at twelve fifteen AM, one Frida...
+ENCOURAGE  default     ex02_default_00002       5.65s  2.079  2.72s  In Rome this evening, it's gonna be partly cloudy, with a...
+NEUTRAL    default     ex02_default_00001_default1   4.20s  1.945  2.16s  There's an alarm tomorrow at twelve fifteen AM, one Frida...
+NEUTRAL    default     ex02_default_00002      22.48s  1.873 12.00s  In Rome this evening, it's gonna be partly cloudy, with a...
+
+peak VRAM 3.57 GB   audio: C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\tts_audition\styles\ex02
+Next, one per strategy (same speaker): python gpu/tts_gpu.py --set-ref STRATEGY CLIP_ID

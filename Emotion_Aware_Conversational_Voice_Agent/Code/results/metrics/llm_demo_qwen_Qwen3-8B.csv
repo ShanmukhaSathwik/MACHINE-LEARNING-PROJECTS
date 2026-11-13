@@ -1,0 +1,6 @@
+kind,strategy,user_text,reply,n_sentences,backend,model,fell_back,errors,first_sentence_seconds,seconds
+reply,VALIDATE,I bombed my practice test today and I feel like I'm just not good enough.,It sounds like you're feeling really discouraged after the practice test. That must be so hard to deal with. Would you like to talk about what's been on your mind lately?,3,qwen,Qwen/Qwen3-8B,False,,0.97,2.17
+reply,CALM,Everything is piling up at once and I can't even think straight right now.,Take a deep breath and list one small thing you can do right now. Maybe grab a cup of water or stretch your arms. Let’s focus on that.,3,qwen,Qwen/Qwen3-8B,False,,0.887,1.811
+reply,ENCOURAGE,I finally finished my whole project a day early!,That's amazing! You did it way ahead of schedule—so proud of you! Let's celebrate with something fun tomorrow.,2,qwen,Qwen/Qwen3-8B,False,,1.079,1.643
+reply,NEUTRAL,I'm just walking home from class right now.,"That sounds nice. The weather’s nice today, isn’t it? You doing okay?",3,qwen,Qwen/Qwen3-8B,False,,0.334,1.075
+extract,,My sister's wedding is next month and I'm nervous,The user is nervous about their sister's wedding next month.,,qwen,Qwen/Qwen3-8B,False,,,0.786

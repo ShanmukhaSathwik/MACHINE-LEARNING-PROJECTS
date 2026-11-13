@@ -1,0 +1,30 @@
+------------------------------------------------------------
+GPU ENVIRONMENT REPORT
+------------------------------------------------------------
+Computer : CI-W-371BV94
+OS       : Windows 11 (10.0.26200)
+Python   : 3.12.10  [C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\.venv_gpu\Scripts\python.exe]
+------------------------------------------------------------
+torch          : 2.11.0+cu128
+torch CUDA build: 12.8
+CUDA available : True
+  GPU 0: NVIDIA RTX 5000 Ada Generation | VRAM 31.99 GB total, 30.44 GB free | compute 8.9
+bf16 supported : True
+------------------------------------------------------------
+Libraries:
+  transformers     5.20.2
+  peft             0.21.2
+  accelerate       1.15.0
+  datasets         5.1.0
+  huggingface_hub  2.2.0
+  soundfile        0.14.0
+  librosa          1.0.0
+  bitsandbytes     0.50.2
+------------------------------------------------------------
+Disk (C:\): 1637.35 GB free of 1906.29 GB
+outputs        : C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs   (runs, checkpoints, logs; env reports stay in gpu/outputs)
+Hugging Face   : not logged in  (token from: none; .env: no .env file)
+------------------------------------------------------------
+RECOMMENDATION : 31.99 GB VRAM: CSM LoRA batch 4-8; Qwen3-14B possible.
+------------------------------------------------------------
+Saved: C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\env_report_CI-W-371BV94_20261112_1350.json

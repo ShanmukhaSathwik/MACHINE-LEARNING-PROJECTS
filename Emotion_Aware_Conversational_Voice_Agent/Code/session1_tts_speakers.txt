@@ -1,0 +1,23 @@
+preset gpu_24gb  device cuda  dtype bfloat16  model sesame/csm-1b  seed 42  max_new_tokens 150 (12s)
+loaded + warm-up in 179.8s   peak VRAM so far 3.38 GB
+
+Loading ylacombe/expresso (config=read) ... first run downloads it, please wait.
+Styles per speaker:
+  ex01: confused, default, emphasis, enunciated, essentials, happy, laughing, longform, sad, singing, whisper
+  ex02: confused, default, emphasis, enunciated, essentials, happy, laughing, longform, sad, singing, whisper
+  ex03: confused, default, emphasis, enunciated, essentials, happy, laughing, longform, sad, singing, whisper
+  ex04: confused, default, emphasis, enunciated, essentials, happy, laughing, longform, sad, singing, whisper
+
+ex01 done (ex01_default_00003)
+ex02 done (ex02_default_00001_default1)
+ex03 done (ex03_default_00020)
+ex04 done (ex04_default_00005)
+
+speaker  ref id                 VALIDATE gen/RTF       CALM gen/RTF  ENCOURAGE gen/RTF    NEUTRAL gen/RTF  peak VRAM  ref transcript
+ex01     ex01_default_00003        5.54s/2.31         8.27s/2.2          5.81s/1.911        4.37s/1.95       3.42 GB  Monday, there's gonna be haze, but *Tuesday*, look for th...
+ex02     ex02_default_00001_default1      6.82s/2.131        7.86s/1.927        4.98s/1.885        4.24s/1.961      3.45 GB  There's an alarm tomorrow at twelve fifteen AM, one Frida...
+ex03     ex03_default_00020       22.22s/1.852        6.95s/1.973        4.23s/1.888        4.22s/1.955      3.48 GB  It's a family fantasy with some computer animation. It's ...
+ex04     ex04_default_00005        5.24s/1.873        7.12s/1.853        4.07s/1.815        4.18s/1.935      3.42 GB  Take six hours and two minutes off your fourteen hour and...
+
+Audio: C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\tts_audition\speakers
+Next: python gpu/tts_gpu.py --audition-styles --speaker SPEAKER --preset PRESET

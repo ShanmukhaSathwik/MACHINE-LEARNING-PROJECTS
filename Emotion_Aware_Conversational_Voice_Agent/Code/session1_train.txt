@@ -1,0 +1,87 @@
+outputs    : C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs
+
+Clips per split x label x corpus (in_4class rows)
+  split  label     ravdess  crema_d    total
+  train  neutral       192      763      955
+  train  happy         127      892     1019
+  train  angry         128      892     1020
+  train  sad           128      892     1020
+  train  = all         575     3439     4014
+  val    neutral        48      168      216
+  val    happy          32      196      228
+  val    angry          32      196      228
+  val    sad            32      196      228
+  val    = all         144      756      900
+  test   neutral        48      155      203
+  test   happy          32      182      214
+  test   angry          32      182      214
+  test   sad            32      182      214
+  test   = all         144      701      845
+
+layerdrop 0.1 -> 0.0 (incompatible with use_weighted_layer_sum during training)
+
+Model label ids (from its id2label): 0=neutral(neu), 1=happy(hap), 2=angry(ang), 3=sad(sad)   same order as CLASSES: True
+
+run        : gpu_24gb_20261112_1500   (C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\ser_finetune\gpu_24gb_20261112_1500)
+device     : cuda   dtype bfloat16   mixed precision: bfloat16   gradient checkpointing: False
+model      : superb/hubert-large-superb-er   (feature encoder frozen: True)
+batch      : 16 x accum 2 = effective 32   workers 4
+clips      : train 4014  val 900  test 845
+steps      : 126 per epoch, 1260 total (max_epochs 10), warmup 126, lr 2e-05
+class wts  : neutral 1.051  happy 0.985  angry 0.984  sad 0.984
+
+epoch 1/10  step 126  train loss 1.1563  val acc 629/900 = 0.699  val macro-F1 0.678  (54.5s, peak VRAM 10.48 GB)
+  val F1: neutral 0.727  happy 0.652  angry 0.864  sad 0.469
+  new best val macro-F1 0.6780 -> saved C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\ser_finetune\gpu_24gb_20261112_1500\best
+
+epoch 2/10  step 252  train loss 0.8497  val acc 639/900 = 0.710  val macro-F1 0.690  (37.2s, peak VRAM 10.1 GB)
+  val F1: neutral 0.709  happy 0.697  angry 0.880  sad 0.472
+  new best val macro-F1 0.6896 -> saved C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\ser_finetune\gpu_24gb_20261112_1500\best
+
+epoch 3/10  step 378  train loss 0.7622  val acc 661/900 = 0.734  val macro-F1 0.729  (37.2s, peak VRAM 10.16 GB)
+  val F1: neutral 0.705  happy 0.654  angry 0.872  sad 0.684
+  new best val macro-F1 0.7287 -> saved C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\ser_finetune\gpu_24gb_20261112_1500\best
+
+epoch 4/10  step 504  train loss 0.6578  val acc 703/900 = 0.781  val macro-F1 0.776  (37.2s, peak VRAM 10.13 GB)
+  val F1: neutral 0.768  happy 0.736  angry 0.886  sad 0.716
+  new best val macro-F1 0.7765 -> saved C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\ser_finetune\gpu_24gb_20261112_1500\best
+
+epoch 5/10  step 630  train loss 0.6224  val acc 699/900 = 0.777  val macro-F1 0.767  (37.4s, peak VRAM 10.41 GB)
+  val F1: neutral 0.765  happy 0.770  angry 0.906  sad 0.627
+  no improvement (1/3); best 0.7765
+
+epoch 6/10  step 756  train loss 0.5844  val acc 705/900 = 0.783  val macro-F1 0.776  (37.3s, peak VRAM 10.1 GB)
+  val F1: neutral 0.761  happy 0.775  angry 0.909  sad 0.659
+  no improvement (2/3); best 0.7765
+
+epoch 7/10  step 882  train loss 0.5359  val acc 700/900 = 0.778  val macro-F1 0.773  (37.6s, peak VRAM 9.99 GB)
+  val F1: neutral 0.750  happy 0.706  angry 0.888  sad 0.747
+  no improvement (3/3); best 0.7765
+  early stop: 3 epochs without a better val macro-F1
+
+Per-epoch metrics: C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\ser_finetune\gpu_24gb_20261112_1500\metrics.csv
+
+=== Test (best checkpoint, evaluated once): C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\gpu\outputs\ser_finetune\gpu_24gb_20261112_1500\best ===
+
+[ravdess] accuracy 103/144 = 0.715   macro-F1 0.676
+  F1: neutral 0.787  happy 0.667  angry 0.776  sad 0.476
+  confusion (rows = true, cols = predicted):
+               neutral    happy    angry      sad
+      neutral       48        0        0        0
+        happy        4       19        9        0
+        angry        5        1       26        0
+          sad       17        5        0       10
+  RAVDESS angry/happy/sad clips: fine-tuned 55/96 = 57.3%   vs   off-the-shelf hubert-large (Check A): 45/96 = 46.9%
+
+[crema_d] accuracy 526/701 = 0.750   macro-F1 0.745
+  F1: neutral 0.726  happy 0.711  angry 0.844  sad 0.698
+  confusion (rows = true, cols = predicted):
+               neutral    happy    angry      sad
+      neutral      142        5        3        5
+        happy       25      113       41        3
+        angry        8        4      168        2
+          sad       61       14        4      103
+
+Per-clip test rows: C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code\results\metrics\ser_finetune_test_gpu_24gb_20261112_1500.csv
+
+SERModel loads best/ as model_name: OK   (03-01-01-01-01-01-16: SERModel -> neutral 0.993, batched test -> neutral 0.993, same label: True)

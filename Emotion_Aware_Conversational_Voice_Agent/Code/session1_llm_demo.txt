@@ -1,0 +1,32 @@
+preset gpu_24gb  device cuda  dtype bfloat16  backend qwen  model Qwen/Qwen3-8B  quantization 4bit
+fallback ['qwen', 'gemini', 'template']  allow_fallback True  history_turns 6  sampling {'temperature': 0.7, 'top_p': 0.8, 'top_k': 20}  max_new_tokens 150
+loaded in 17.9s, warm-up 0.80s
+
+[VALIDATE] user: "I bombed my practice test today and I feel like I'm just not good enough."
+   > It sounds like you're feeling really discouraged after the practice test.
+   > That must be so hard to deal with.
+   > Would you like to talk about what's been on your mind lately?
+   backend qwen  model Qwen/Qwen3-8B  fell_back False  first sentence 0.97s  total 2.17s
+
+[CALM] user: "Everything is piling up at once and I can't even think straight right now."
+   > Take a deep breath and list one small thing you can do right now.
+   > Maybe grab a cup of water or stretch your arms.
+   > LetÆs focus on that.
+   backend qwen  model Qwen/Qwen3-8B  fell_back False  first sentence 0.887s  total 1.811s
+
+[ENCOURAGE] user: 'I finally finished my whole project a day early!'
+   > That's amazing! You did it way ahead of scheduleùso proud of you!
+   > Let's celebrate with something fun tomorrow.
+   backend qwen  model Qwen/Qwen3-8B  fell_back False  first sentence 1.079s  total 1.643s
+
+[NEUTRAL] user: "I'm just walking home from class right now."
+   > That sounds nice.
+   > The weatherÆs nice today, isnÆt it?
+   > You doing okay?
+   backend qwen  model Qwen/Qwen3-8B  fell_back False  first sentence 0.334s  total 1.075s
+
+[fact extraction] user: "My sister's wedding is next month and I'm nervous"
+   -> The user is nervous about their sister's wedding next month.
+   backend qwen  model Qwen/Qwen3-8B  0.786s
+
+Rows: results/metrics/llm_demo_qwen_Qwen3-8B.csv

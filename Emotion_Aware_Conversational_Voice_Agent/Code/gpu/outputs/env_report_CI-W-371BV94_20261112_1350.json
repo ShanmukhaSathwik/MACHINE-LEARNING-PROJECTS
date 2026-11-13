@@ -1,0 +1,53 @@
+{
+  "timestamp": "2026-11-12T13:50:18",
+  "system": {
+    "computer": "CI-W-371BV94",
+    "os": "Windows",
+    "os_version": "10.0.26200",
+    "os_release": "11",
+    "python": "3.12.10",
+    "python_executable": "C:\\shan\\MACHINE-LEARNING-PROJECTS\\Emotion_Aware_Conversational_Voice_Agent\\Code\\.venv_gpu\\Scripts\\python.exe"
+  },
+  "torch": {
+    "torch": "2.11.0+cu128",
+    "torch_cuda_build": "12.8",
+    "cuda_available": true,
+    "gpus": [
+      {
+        "index": 0,
+        "name": "NVIDIA RTX 5000 Ada Generation",
+        "vram_total_gb": 31.99,
+        "vram_free_gb": 30.44,
+        "compute_capability": "8.9"
+      }
+    ],
+    "bf16_supported": true
+  },
+  "libraries": {
+    "transformers": "5.20.2",
+    "peft": "0.21.2",
+    "accelerate": "1.15.0",
+    "datasets": "5.1.0",
+    "huggingface_hub": "2.2.0",
+    "soundfile": "0.14.0",
+    "librosa": "1.0.0",
+    "bitsandbytes": "0.50.2"
+  },
+  "disk": {
+    "path": "C:\\",
+    "total_gb": 1906.29,
+    "free_gb": 1637.35,
+    "warning": null
+  },
+  "huggingface": {
+    "logged_in": false,
+    "user": null,
+    "token_source": null,
+    "env_file": "no .env file"
+  },
+  "recommendation": {
+    "tier": "large",
+    "text": "31.99 GB VRAM: CSM LoRA batch 4-8; Qwen3-14B possible."
+  },
+  "outputs_dir": "C:\\shan\\MACHINE-LEARNING-PROJECTS\\Emotion_Aware_Conversational_Voice_Agent\\Code\\gpu\\outputs"
+}
