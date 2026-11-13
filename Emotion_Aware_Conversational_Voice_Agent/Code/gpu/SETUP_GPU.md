@@ -1,6 +1,7 @@
 # GPU setup guide (professor's Windows machine)
 
 Copy-paste steps for each GPU session. All commands are **PowerShell**.
+**Session 2:** follow [`SESSION2_CHECKLIST.md`](SESSION2_CHECKLIST.md) (home prep, GPU tests in order, bringing results home).
 Nothing here touches the professor's own Python or files: everything lives in
 one work folder that you can delete at the end.
 
@@ -75,20 +76,27 @@ with read-only access to this repo, and remove it at cleanup (section 4).
 
 ### 1.4 Create a separate venv
 ```powershell
-py -3.12 -m venv .venv-gpu
-.\.venv-gpu\Scripts\Activate.ps1
+py -3.12 -m venv .venv_gpu
+.\.venv_gpu\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 ```
 If activation is blocked: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` (this window only).
 
-### 1.5 Install the CUDA build of torch 2.15.0
-1. Open pytorch.org → *Get Started* → choose **Stable, Windows, Pip, Python, CUDA**.
-2. Pick the highest CUDA option that is **≤ the "CUDA Version" from `nvidia-smi`**.
-3. Run the command it shows, but pin the version to match your home PC:
-   ```powershell
-   pip install torch==2.15.0 --index-url https://download.pytorch.org/whl/<cuXXX>
-   ```
-   (`<cuXXX>` is the tag from the selector, e.g. the part after `/whl/`.)
+### 1.5 Install the CUDA build of torch (2.11.0+cu128 on the session-1 machine)
+The GPU machine runs **torch 2.11.0+cu128** (CUDA build 12.8), according to session 1's
+`gpu\outputs\env_report_CI-W-371BV94_20261112_1350.json`. It is not 2.15.0 like the home PC, because PyTorch's
+cu128 index (`https://download.pytorch.org/whl/cu128/torch/`) has no 2.15.0 wheel: its newest
+Python 3.12 Windows wheel is `torch-2.11.0+cu128-cp312-cp312-win_amd64.whl`. Every session-1 GPU run (T3 training,
+Whisper, Qwen3-8B, CSM audition) used this build. Home (CPU torch 2.15.0, `requirements.txt`) and the GPU
+machine therefore differ in torch version.
+
+On that machine, or any GPU whose `nvidia-smi` "CUDA Version" is 12.8 or higher:
+```powershell
+pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+```
+On a different machine whose driver reports a CUDA version below 12.8: open pytorch.org → *Get Started* →
+**Stable, Windows, Pip, Python, CUDA**, pick the highest CUDA option that is **≤ the "CUDA Version" from `nvidia-smi`**,
+and install a torch version that the matching `https://download.pytorch.org/whl/<cuXXX>/torch/` index really lists.
 
 ### 1.6 Install the rest
 ```powershell
@@ -125,17 +133,23 @@ The report is saved to `gpu\outputs\env_report_<computer>_<time>.json` — bring
 
 ## 2. Every later session (~5 min)
 
+On the session-1 machine the project is a **full clone** (paths from session 1's env report):
+`C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code`, venv `.venv_gpu`.
+First check that it is still there:
 ```powershell
-$WORK = "D:\emotion-agent"
-cd $WORK\repo
+$CODE = "C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code"
+Test-Path $CODE\.venv_gpu\Scripts\Activate.ps1      # True -> run the block below; False -> section 1
+```
+```powershell
+cd $CODE
 git pull
-cd Emotion_Aware_Conversational_Voice_Agent\Code
-.\.venv-gpu\Scripts\Activate.ps1
-$env:HF_HOME  = "$WORK\hf_cache"
+.\.venv_gpu\Scripts\Activate.ps1
+$env:HF_HOME  = "C:\shan\hf_cache"
 $env:HF_TOKEN = Read-Host "Paste HF token"   # only needed once the session uses sesame/csm-1b
 python -u gpu\check_env.py | Tee-Object -FilePath session<N>_check_env.txt   # <N> = session number
 ```
-If the professor cleaned the folder, redo section 1 (downloads are the slow part).
+If `Test-Path` says False (the folder or venv was cleaned, or this is another machine), do the fresh setup in
+section 1 instead (downloads are the slow part).
 
 ---
 

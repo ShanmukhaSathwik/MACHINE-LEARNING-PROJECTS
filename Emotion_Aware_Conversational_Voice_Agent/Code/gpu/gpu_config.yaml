@@ -58,6 +58,12 @@ base:
     seed: 42                 # fixed before every generation, so voices and styles are compared on equal terms
     tags_enabled: false      # false = remove <sigh>-style tags before speaking (base CSM-1B is not trained on them)
 
+  # Benchmark (gpu/bench_gpu.py). A run setting, not a measurement: one warm-up turn is run first and discarded,
+  # then the whole bench conversation runs this many times (median and min-max are reported per turn).
+  bench:
+    repeats: 3
+    turns_file: "gpu/bench_turns.yaml"
+
   # Where the agent writes its records.
   logging:
     log_dir: "results/logs"           # one JSON-lines log per session goes here

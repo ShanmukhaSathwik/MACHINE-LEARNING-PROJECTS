@@ -128,6 +128,13 @@ Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6
 - Push-to-talk `--live` (cap = `ser.max_seconds`), delete-all by voice (spoken "yes" only; neither turn logged or stored), `--script` rehearsal mode
 - CPU tests: `tests/test_live_agent_9b.py` (stubs)
 
+**Step 10 — code done, GPU pending (2026-11-13)**
+- `gpu/bench_gpu.py`: runs `gpu/bench_turns.yaml` through `LiveAgent` via the scripted mode; per turn the agent's own stage times, time to first audio, turn total, voice path, LLM backend, `ser_model` + fallback, abstained; peak GPU memory after load and after the run ("n/a" without CUDA); one warm-up turn discarded, then `bench.repeats` passes (median and min–max); fallbacks flagged; bench users / memory / logs kept in `gpu/outputs/bench/`
+- `gpu/bench_turns.yaml`: first test-split clip per corpus × class (no my_voice), plus a crisis text case and a delete request cancelled by "No."
+- `gpu/SESSION2_CHECKLIST.md`: home prep (room noise with enhancements off, gate only if its check passes, USB copies), GPU tests in order, results home, cleanup
+- Only a `--stub` plumbing run so far (no models; its timings are not results). CPU tests: `tests/test_bench_gpu.py`
+- To do on the GPU: `python gpu/bench_gpu.py --preset gpu_24gb` → `results/metrics/bench_gpu_24gb_<time>.csv`
+
 ### B. MemoryManager — JSON scaffold
 - Conversation buffer (last N turns)
 - User-fact store (name, preferences) with emotion-gated write
