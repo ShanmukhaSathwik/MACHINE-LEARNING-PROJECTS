@@ -1,0 +1,34 @@
+{
+  "VALIDATE": {
+    "file": "VALIDATE.wav",
+    "text": "There's an alarm tomorrow at twelve fifteen AM, one Friday at nine AM, and one next Saturday at eight PM.",
+    "speaker": "ex02",
+    "style": "default",
+    "source_id": "ex02_default_00001_default1",
+    "seconds": 7.21
+  },
+  "CALM": {
+    "file": "CALM.wav",
+    "text": "In Rome this evening, it's gonna be partly cloudy, with a high of forty nine and a low of twenty one.",
+    "speaker": "ex02",
+    "style": "default",
+    "source_id": "ex02_default_00002",
+    "seconds": 6.27
+  },
+  "ENCOURAGE": {
+    "file": "ENCOURAGE.wav",
+    "text": "In Rome this evening, it's gonna be partly cloudy, with a high of forty nine and a low of twenty one.",
+    "speaker": "ex02",
+    "style": "happy",
+    "source_id": "ex02_happy_00002",
+    "seconds": 6.04
+  },
+  "NEUTRAL": {
+    "file": "NEUTRAL.wav",
+    "text": "In Rome this evening, it's gonna be partly cloudy, with a high of forty nine and a low of twenty one.",
+    "speaker": "ex02",
+    "style": "default",
+    "source_id": "ex02_default_00002",
+    "seconds": 6.27
+  }
+}
