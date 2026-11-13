@@ -4,10 +4,16 @@ test_finetune_ser.py - training T2 (gpu/finetune_ser.py). No downloads, no model
 2. Label ids follow the model's own id2label and cover exactly CLASSES.
 3. Class weights: rarer class -> larger weight; always finite.
 4. Augmentation: float32 mono at 16 kHz, length close to the input; val/test are never augmented.
+5. run() with a hubert-large config: model kwargs (layerdrop) and CLI overrides stay separate (bug fixed in 182d6f5).
 """
+import sys
+from types import ModuleType, SimpleNamespace
+
 import numpy as np
 import pytest
 import soundfile as sf
+import torch
+import yaml
 
 import finetune_ser as ft
 from device import code_path, load_config
@@ -72,6 +78,67 @@ def test_cli_overrides_and_sanity_run_id():
     none = SimpleNamespace(max_steps=None, max_train_clips=None, max_val_clips=None, num_workers=None)
     assert ft.apply_overrides(plain["finetune"], none) == []
     assert ft.make_run_id("gpu_16gb", when, sanity=False) == "gpu_16gb_20261112_1405"
+
+
+class _StopAfterSetup(Exception):
+    """Raised at the first epoch: everything up to config_used.yaml has run by then."""
+
+
+class _TinyModel(torch.nn.Module):
+    """Stands in for AutoModelForAudioClassification: real parameters (for AdamW), superb-style id2label."""
+
+    def __init__(self):
+        super().__init__()
+        self.head = torch.nn.Linear(1, 4)
+        self.config = SimpleNamespace(id2label={0: "neu", 1: "hap", 2: "ang", 3: "sad"}, num_labels=4)
+
+    def freeze_feature_encoder(self):
+        pass
+
+    def gradient_checkpointing_enable(self):
+        pass
+
+
+# Config fields as in superb/hubert-large-superb-er's config.json; the plain one has no weighted layer sum
+HUBERT_LARGE_CFG = {"use_weighted_layer_sum": True, "layerdrop": 0.1}
+PLAIN_CFG = {"use_weighted_layer_sum": False, "layerdrop": 0.1}
+
+
+@pytest.mark.parametrize("base_cfg, expected_kwargs", [(HUBERT_LARGE_CFG, {"layerdrop": 0.0}), (PLAIN_CFG, {})],
+                         ids=["hubert-large", "no-weighted-sum"])
+def test_model_kwargs_and_cli_overrides_stay_separate(monkeypatch, tmp_path, base_cfg, expected_kwargs):
+    """Regression for 182d6f5: the model-settings dict reused the name `overrides` (the CLI override list), so
+    with hubert-large ({"layerdrop": 0.0}) writing config_used.yaml crashed unpacking "layerdrop" as (k, old, new).
+    Runs the real run() up to the first epoch with a fake transformers module: no download, CPU only."""
+    loaded = {}
+
+    def model_from_pretrained(name, **kwargs):
+        loaded["name"], loaded["kwargs"] = name, kwargs
+        return _TinyModel()
+
+    fake = ModuleType("transformers")
+    fake.AutoConfig = SimpleNamespace(from_pretrained=lambda name: SimpleNamespace(**base_cfg))
+    fake.AutoFeatureExtractor = SimpleNamespace(from_pretrained=lambda name: object())
+    fake.AutoModelForAudioClassification = SimpleNamespace(from_pretrained=model_from_pretrained)
+    fake.get_linear_schedule_with_warmup = lambda optimizer, warmup, total: None
+    monkeypatch.setitem(sys.modules, "transformers", fake)
+    monkeypatch.setenv("GPU_OUTPUTS_DIR", str(tmp_path / "gpu_outputs"))   # run folder goes to tmp, not gpu/outputs
+    monkeypatch.setattr(ft, "_git_commit", lambda: None)
+    monkeypatch.setattr(ft, "StageTimer", lambda: (_ for _ in ()).throw(_StopAfterSetup()))
+
+    args = SimpleNamespace(preset="smoke_cpu", resume=None, max_steps=3, max_train_clips=8,
+                           max_val_clips=None, num_workers=None)
+    with pytest.raises(_StopAfterSetup):    # reached the training loop: no crash before it
+        ft.run(args)
+
+    assert loaded["kwargs"] == expected_kwargs                       # only model settings go to from_pretrained
+    (run_dir,) = (tmp_path / "gpu_outputs" / "ser_finetune").iterdir()
+    used = yaml.safe_load((run_dir / "config_used.yaml").read_text(encoding="utf-8"))
+    assert used["cli_overrides"] == {"max_steps": {"config": 2, "used": 3},          # only the CLI flags given
+                                     "max_train_clips": {"config": 16, "used": 8}}
+    assert run_dir.name.endswith("_sanity")
+    assert not set(used["cli_overrides"]) & set(loaded["kwargs"])
+    assert "layerdrop" not in used["finetune"]                       # model kwargs don't leak into the config
 
 
 def test_class_weights():

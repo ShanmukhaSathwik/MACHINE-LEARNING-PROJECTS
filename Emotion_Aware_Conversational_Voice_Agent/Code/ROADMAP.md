@@ -85,6 +85,25 @@ Design principles from the workflow doc, Section 0.6. All CPU, all on existing c
 - Out-of-domain test on a fresh my-voice set (`data/my_voice_v3`), never used for tuning
 - Rerun Rule B for τ_conf with whichever model wins
 
+### GPU demo build (`gpu/`, settings in `gpu/gpu_config.yaml`)
+Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6 `asr_gpu.py`, 7 `llm_gpu.py`, 8a `tts_gpu.py`; training T2/T3 `finetune_ser.py`.
+
+**GPU session 1 (2026-11-12) — measured**
+- **Training T3 — DONE**: run `gpu_24gb_20261112_1500`, `superb/hubert-large-superb-er`, 4 classes; early-stopped at epoch 7, best epoch 4, val macro-F1 0.777
+  - Test: CREMA-D acc 0.750 / macro-F1 0.745; RAVDESS acc 0.715 / macro-F1 0.676
+  - Main weakness: sad read as neutral (top error on both corpora: 61 CREMA-D and 17 RAVDESS test clips)
+  - Per-clip results: `results/metrics/ser_finetune_test_gpu_24gb_20261112_1500.csv`
+  - Fix in 182d6f5: the model-settings dict reused the name `overrides` (the CLI override list) and crashed with hubert-large; now `model_kwargs`, with a regression test in `tests/test_finetune_ser.py`
+- **Step 6 on GPU**: Whisper large-v3-turbo, WER 0.049 on 24 RAVDESS clips (all word errors / all reference words; the skipped clip counts as all words deleted), ~0.08 s per clip
+  - The −45 dBFS silence gate (`asr.silence_dbfs`) skipped one quiet sad clip (`Actor_20/03-01-04-01-01-02-20.wav`)
+  - To do: measure the silence-gate threshold
+  - `results/metrics/asr_ravdess_whisper-large-v3-turbo.csv`
+- **Step 7 on GPU**: Qwen3-8B 4-bit; all four strategies + fact extraction answered by Qwen (no fallback); first sentence in ~0.3–1.1 s
+  - Prompt fixes to do: CALM gives several steps instead of one; NEUTRAL invented a fact
+  - `results/metrics/llm_demo_qwen_Qwen3-8B.csv`
+- **Step 8a — DONE**: Expresso speaker ex02; picks saved in `gpu/voice_refs.json`: VALIDATE `ex02_default_00001_default1`; CALM and NEUTRAL `ex02_default_00002`; ENCOURAGE `ex02_happy_00002`
+- **Not yet done**: the T3 model has not been tested on `data/my_voice_v3`, so it is **not yet approved for the demo**
+
 ### B. MemoryManager — JSON scaffold
 - Conversation buffer (last N turns)
 - User-fact store (name, preferences) with emotion-gated write
