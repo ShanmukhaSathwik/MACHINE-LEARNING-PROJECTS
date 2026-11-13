@@ -34,9 +34,24 @@ Per-user isolation: mood state, conversation history, consent check, turn counte
 keyed by user_id. delete_user_data(user_id) = memory_manager.delete_all_my_data (memories, consent record, that
 user's session logs) + this session's state for that user.
 
-CLI (one turn from a wav file; asks for consent first if the user has none on record):
+Step 9b:
+    Emotion model = ser.checkpoint (T3) through ser_gpu.load_ser_with_fallback; the pretrained ser.model only if the
+    checkpoint is missing or fails to load (one warning). Every log line records ser_model {name, fallback}.
+    Delete all my data by voice: safety.DELETE_PHRASE -> "say yes to confirm" -> next turn: yes deletes
+    (delete_user_data), anything else cancels. Neither turn is logged, stored, added to history or fed to the mood.
+    A crisis phrase still wins over everything (and cancels a pending deletion).
+    Push-to-talk (--live): Enter starts, Enter stops (sounddevice, mic's own rate -> 16 kHz mono like
+    scripts/record.py), capped at ser.max_seconds (the emotion model reads no more than that). q quits.
+    Scripted mode (--script): several wav files as one conversation for one user, debug view per turn.
+
+CLI (consent is asked once, before anything is loaded and before the mic opens):
     python gpu/live_agent_gpu.py --wav data/my_voice_v2/01_neutral.wav --user sathwik --preset gpu_24gb
+    python gpu/live_agent_gpu.py --live --user sathwik --preset gpu_24gb
+    python gpu/live_agent_gpu.py --script rehearsal.yaml --preset gpu_24gb [--user NAME] [--no-play]
     python gpu/live_agent_gpu.py --wav some.wav --user test --preset smoke_cpu --no-play
+--script file: YAML {user: NAME (optional), turns: [{wav: PATH, label: LABEL (optional)}, ...]} or a list of
+those, or a text/CSV file with one "PATH[,LABEL]" per line (# comments, an optional "wav,label" header).
+Relative paths are taken from Code/, else from the script file's folder. Labels are printed, never given to the agent.
 """
 
 import argparse
@@ -71,13 +86,15 @@ STAGES = ("consent", "asr", "safety", "emotion", "abstain", "mood", "memory", "p
 REPEAT_PROMPT = "Sorry, I didn't catch that. Could you say it again?"
 REPEAT_STRATEGY = "NEUTRAL"
 USER_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")   # becomes part of a log file name: no path separators
+MIC_TARGET_SR = 16000          # same as scripts/record.py TARGET_SR (a test checks)
+CODE_DIR = HERE.parent
 
 LOG_FIELDS = (
     "user_id", "session_id", "turn_id", "timestamp", "status", "transcript", "crisis", "crisis_phrase",
     "emotion_probs", "confidence", "margin", "abstained", "mood_scores", "turns_above", "mode", "strategy",
     "check_in", "reason", "mood_params", "retrieved_memories", "system_prompt", "llm_backend", "llm_model",
     "llm_fell_back", "llm_error", "reply", "voice_path", "voice_error", "time_to_first_audio", "tts_tags",
-    "stored_memory_id", "fact", "timings",
+    "stored_memory_id", "fact", "timings", "ser_model",
 )
 
 
@@ -181,8 +198,11 @@ class AgentVoice:
 
 class LiveAgent:
     def __init__(self, cfg, *, asr, emotion, llm, voice, memory, logger, safety=safety_module,
-                 mood_factory=None, consent_path=None, extract_fn=fact_extractor.extract_fact):
+                 mood_factory=None, consent_path=None, extract_fn=fact_extractor.extract_fact, ser_model=None):
         self.cfg = cfg
+        # {name, fallback} of the emotion model actually loaded (ser_gpu.load_ser_with_fallback); in every log line
+        self.ser_model = ({"name": ser_model.get("name"), "fallback": bool(ser_model.get("fallback"))}
+                          if ser_model else None)
         self.asr, self.emotion, self.llm, self.voice = asr, emotion, llm, voice
         self.memory, self.logger, self.safety = memory, logger, safety
         self.mood_factory = mood_factory or (lambda: MoodManagerV2.from_config(cfg["brain"]))
@@ -198,7 +218,7 @@ class LiveAgent:
     def _state(self, user_id) -> dict:
         if user_id not in self._users:
             self._users[user_id] = {"mood": self.mood_factory(), "history": deque(maxlen=self.history_turns),
-                                    "turns": 0, "consented": False}
+                                    "turns": 0, "consented": False, "pending_delete": False}
         return self._users[user_id]
 
     def _consent_ok(self, user_id) -> bool:
@@ -218,6 +238,29 @@ class LiveAgent:
         report = self.memory.delete_all_my_data(user_id, self.logger.log_dir, self.consent_path)
         self._users.pop(user_id, None)
         return report
+
+    def _delete_by_voice(self, user_id, st, transcript):
+        """safety.DELETE_PHRASE -> ask for a spoken yes; the NEXT turn confirms (yes) or cancels (anything else).
+        Returns the turn's result for these turns, None for an ordinary turn. Nothing here is logged or stored."""
+        wants = getattr(self.safety, "wants_delete_all", safety_module.wants_delete_all)
+        is_yes = getattr(self.safety, "is_spoken_yes", safety_module.is_spoken_yes)
+        text = lambda name: getattr(self.safety, name, getattr(safety_module, name))  # noqa: E731
+        if st.get("pending_delete"):
+            st["pending_delete"] = False
+            if is_yes(transcript):
+                report = self.delete_user_data(user_id)
+                voice_rec = self._speak(text("DELETE_DONE"), REPEAT_STRATEGY)
+                return {"status": "deleted", "user_id": user_id, "transcript": transcript, "report": report,
+                        "reply": text("DELETE_DONE"), "voice_path": voice_rec.get("path")}
+            voice_rec = self._speak(text("DELETE_CANCELLED"), REPEAT_STRATEGY)
+            return {"status": "delete_cancelled", "user_id": user_id, "transcript": transcript,
+                    "reply": text("DELETE_CANCELLED"), "voice_path": voice_rec.get("path")}
+        if wants(transcript):
+            st["pending_delete"] = True
+            voice_rec = self._speak(text("DELETE_CONFIRM_PROMPT"), REPEAT_STRATEGY)
+            return {"status": "delete_confirm", "user_id": user_id, "transcript": transcript,
+                    "reply": text("DELETE_CONFIRM_PROMPT"), "voice_path": voice_rec.get("path")}
+        return None
 
     # -- speaking --
 
@@ -274,7 +317,8 @@ class LiveAgent:
         rec = {k: None for k in LOG_FIELDS}
         rec.update(user_id=user_id, session_id=self.session_id, turn_id=turn_id, status=status,
                    timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"), transcript=transcript,
-                   crisis=False, abstained=False, check_in=False, retrieved_memories=[], tts_tags=[])
+                   crisis=False, abstained=False, check_in=False, retrieved_memories=[], tts_tags=[],
+                   ser_model=self.ser_model)
         return rec
 
     def _voice_fields(self, rec, voice_rec):
@@ -313,12 +357,18 @@ class LiveAgent:
                     "asr_reason": asr_out.get("reason") or "no words in the transcript",
                     "voice_path": voice_rec.get("path"), "timings": dict(stages.times)}
 
-        st["turns"] += 1
-        turn_id = f"{self.session_id}-{st['turns']}"
-
-        # 2. crisis check
+        # 2. crisis check (first, always: it also cancels a pending deletion)
         with stages("safety"):
             crisis = self.safety.check_crisis(transcript)
+        if crisis.get("matched"):
+            st["pending_delete"] = False
+        else:
+            handled = self._delete_by_voice(user_id, st, transcript)
+            if handled is not None:
+                return handled                              # not logged, not stored, mood untouched
+
+        st["turns"] += 1
+        turn_id = f"{self.session_id}-{st['turns']}"
         if crisis.get("matched"):
             rec = self._record(user_id, turn_id, transcript, "crisis")
             strategy = self.safety.SAFE_STRATEGY
@@ -402,6 +452,8 @@ class LiveAgent:
 
 def load_real_parts(preset=None, play=True):
     """(cfg, parts) for LiveAgent(cfg, **parts): ASR, SER, LLM and CSM loaded and warmed up once.
+    SER = the ser.checkpoint (T3) if it loads and its label order checks out, else the pretrained ser.model (one
+    warning; parts["ser_model"] says which). A label-order mismatch stops here (ser_gpu.LabelOrderError).
     The CSM voice is loaded only when tts.backend is csm; if it fails to load, the agent uses the fallback voice."""
     from device import setup
     import asr_gpu
@@ -410,7 +462,8 @@ def load_real_parts(preset=None, play=True):
 
     cfg, device, dtype = setup(preset)
     asr = asr_gpu.ASR(cfg, device, dtype).load().warm_up()
-    emotion = ser_gpu.SERModel(cfg, device, dtype)            # loads + warms up in __init__
+    emotion, ser_info = ser_gpu.load_ser_with_fallback(cfg, device, dtype,
+                                                       warn=lambda m: print(m, file=sys.stderr))
     llm = llm_gpu.LLM(cfg, device, dtype).load().warm_up()
     csm = None
     if cfg["tts"].get("backend") == "csm":
@@ -423,17 +476,167 @@ def load_real_parts(preset=None, play=True):
                   file=sys.stderr)
     mconf = load_memory_config()
     parts = {"asr": asr, "emotion": emotion, "llm": llm, "voice": AgentVoice(csm, play=play),
-             "memory": MemoryManager(mconf["memory_file"], cfg["memory"]), "logger": TurnLogger(mconf["log_dir"])}
+             "memory": MemoryManager(mconf["memory_file"], cfg["memory"]), "logger": TurnLogger(mconf["log_dir"]),
+             "ser_model": ser_info}
     return cfg, parts
+
+
+# ---------------------------------------------------------------------------------------------
+# Debug view, push-to-talk, scripted conversations
+# ---------------------------------------------------------------------------------------------
+
+def debug_view(r) -> str:
+    """Short per-turn view: transcript, abstained, confidence, mood scores, strategy, check_in, reason, voice path,
+    time to first audio."""
+    status = r.get("status")
+    if status == "refused":
+        return f"[refused] {r.get('reason')}"
+    if status == "repeat":
+        return f"[repeat] {r.get('asr_reason')} -> asked to repeat   voice {r.get('voice_path')}"
+    if status in ("delete_confirm", "deleted", "delete_cancelled"):
+        extra = ""
+        if status == "deleted":
+            rep = r.get("report") or {}
+            extra = (f"   memories removed {rep.get('memories_removed')}, logs removed "
+                     f"{len(rep.get('logs_removed') or [])}, consent revoked {rep.get('consent_revoked')}")
+        return (f"[{status}] heard: {r.get('transcript')!r}   (not logged, not stored)   "
+                f"voice {r.get('voice_path')}{extra}")
+    lines = [f"transcript : {r.get('transcript')}"]
+    if r.get("crisis"):
+        lines.append(f"CRISIS     : {r.get('crisis_phrase')!r} -> safe response, NEUTRAL voice")
+    else:
+        conf = r.get("confidence")
+        mood = r.get("mood_scores") or {}
+        scores = "  ".join(f"{c} {mood[c]:.2f}" for c in ("neutral", "happy", "angry", "sad") if c in mood)
+        lines.append(f"emotion    : confidence {conf:.2f}  " + ("ABSTAINED" if r.get("abstained") else "kept")
+                     if conf is not None else "emotion    : n/a")
+        lines.append(f"mood       : {scores}")
+        lines.append(f"strategy   : {r.get('strategy')}" + ("   CHECK_IN" if r.get("check_in") else ""))
+    lines.append(f"reason     : {r.get('reason')}")
+    ttfa = r.get("time_to_first_audio")
+    lines.append(f"voice      : {r.get('voice_path')}   time to first audio "
+                 + (f"{ttfa:.2f} s" if isinstance(ttfa, (int, float)) else "n/a"))
+    return "\n".join(lines)
+
+
+def chunks_to_16k(chunks, mic_sr, max_seconds):
+    """Mic blocks -> one float32 mono array at 16 kHz, cut to max_seconds; the conversion scripts/record.py does
+    (record at the mic's own rate, flatten, librosa.resample to 16 kHz)."""
+    import numpy as np
+
+    y = (np.concatenate([np.asarray(c, dtype=np.float32).reshape(-1) for c in chunks])
+         if chunks else np.zeros(0, dtype=np.float32))
+    y = y[: int(max_seconds * mic_sr)]
+    if y.size and int(mic_sr) != MIC_TARGET_SR:
+        import librosa
+
+        y = librosa.resample(y, orig_sr=int(mic_sr), target_sr=MIC_TARGET_SR)
+    return np.ascontiguousarray(y, dtype=np.float32)
+
+
+def record_push_to_talk(max_seconds, input_fn=input, sd=None, print_fn=print):
+    """Mic is open only between the two Enter presses (the first one is the caller's). Stops by itself at
+    max_seconds; the user still presses Enter to go on. Returns 16 kHz mono float32."""
+    import threading
+
+    if sd is None:
+        import sounddevice as sd
+    mic_sr = int(sd.query_devices(kind="input")["default_samplerate"])
+    cap = int(max_seconds * mic_sr)
+    chunks, got, capped = [], [0], threading.Event()
+
+    def callback(indata, frames, time_info, status):
+        if got[0] >= cap:
+            capped.set()
+            raise sd.CallbackStop
+        chunks.append(indata.copy())
+        got[0] += len(indata)
+
+    with sd.InputStream(samplerate=mic_sr, channels=1, dtype="float32", callback=callback):
+        input_fn(f"  recording (max {max_seconds:g} s) ... press Enter to stop ")
+    if capped.is_set():
+        print_fn(f"  (stopped at the {max_seconds:g} s cap)")
+    return chunks_to_16k(chunks, mic_sr, max_seconds)
+
+
+def live_loop(agent, user_id, max_seconds, input_fn=input, record_fn=record_push_to_talk, print_fn=print) -> int:
+    """Enter = talk (Enter again = stop), q = quit. Ends after a deletion (consent is gone) or a refusal."""
+    while True:
+        cmd = input_fn("\n[Enter] talk   [q] quit > ").strip().lower()
+        if cmd == "q":
+            return 0
+        y = record_fn(max_seconds, input_fn=input_fn)
+        r = agent.run_turn(user_id, (y, MIC_TARGET_SR))
+        print_fn(debug_view(r))
+        if r["status"] == "deleted":
+            print_fn("Your data was deleted and your consent withdrawn. Ending the session.")
+            return 0
+        if r["status"] == "refused":
+            return 1
+
+
+def parse_script(path):
+    """(user or None, [{"wav": Path, "label": str or None}]) from a YAML or a PATH[,LABEL] text/CSV file."""
+    path = Path(path)
+    text = path.read_text(encoding="utf-8")
+    user, turns = None, []
+    if path.suffix.lower() in (".yaml", ".yml"):
+        import yaml
+
+        data = yaml.safe_load(text)
+        if isinstance(data, dict):
+            user, items = data.get("user"), data.get("turns")
+        else:
+            items = data
+        if not isinstance(items, list) or not items:
+            raise ValueError(f"{path}: expected a list of turns (or {{user, turns: [...]}})")
+        for it in items:
+            if isinstance(it, str):
+                turns.append({"wav": it, "label": None})
+            elif isinstance(it, dict) and it.get("wav"):
+                turns.append({"wav": str(it["wav"]), "label": it.get("label")})
+            else:
+                raise ValueError(f"{path}: a turn needs a wav path, got {it!r}")
+    else:
+        for n, line in enumerate(text.splitlines(), 1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = [p.strip() for p in line.split(",")]
+            if not turns and parts[0].lower() in ("wav", "path", "wav_path"):
+                continue                                         # header
+            turns.append({"wav": parts[0], "label": (parts[1] or None) if len(parts) > 1 else None})
+        if not turns:
+            raise ValueError(f"{path}: no wav paths found")
+    resolved, missing = [], []
+    for t in turns:
+        p = Path(t["wav"])
+        if not p.is_absolute():
+            p = CODE_DIR / p if (CODE_DIR / p).is_file() else path.parent / p
+        (resolved if p.is_file() else missing).append({"wav": p, "label": t["label"]})
+    if missing:
+        raise ValueError(f"{path}: wav file(s) not found: {[str(m['wav']) for m in missing]}")
+    return (str(user) if user else None), resolved
+
+
+def run_script(agent, user_id, turns, print_fn=print) -> list:
+    """All turns as one conversation for user_id; the label (if any) is printed next to the view, never used."""
+    results = []
+    for i, t in enumerate(turns, 1):
+        label = f"   label: {t['label']} (not given to the agent)" if t.get("label") else ""
+        print_fn(f"\n--- turn {i}/{len(turns)}: {Path(t['wav']).name}{label}")
+        r = agent.run_turn(user_id, t["wav"])
+        print_fn(debug_view(r))
+        results.append(r)
+        if r["status"] in ("deleted", "refused"):
+            break
+    return results
 
 
 def _print_turn(r):
     print(f"\nstatus     : {r['status']}")
-    if r["status"] == "refused":
-        print(f"reason     : {r['reason']}")
-        return
-    if r["status"] == "repeat":
-        print(f"asr        : {r['asr_reason']} -> asked to repeat ({r['voice_path']})")
+    if r["status"] not in ("ok", "crisis"):
+        print(debug_view(r))
         return
     print(f"transcript : {r['transcript']}")
     if r["crisis"]:
@@ -451,26 +654,41 @@ def _print_turn(r):
           + (f"  error={r['voice_error']}" if r["voice_error"] else ""))
     if r.get("fact"):
         print(f"stored     : {r['fact']}  ({r['stored_memory_id']})")
+    print(f"ser model  : {r.get('ser_model')}")
     print("timings    : " + "  ".join(f"{k} {v:.3f}s" for k, v in r["timings"].items()))
     print(f"log        : {r['log_file']}")
 
 
 def _main():
-    ap = argparse.ArgumentParser(description="Live agent: one turn from a wav file (GPU demo build, step 9a).")
-    ap.add_argument("--wav", required=True, help="16 kHz (or any rate) wav file with one user turn")
-    ap.add_argument("--user", required=True, help="user id (letters, digits, '_', '.', '-')")
+    ap = argparse.ArgumentParser(description="Live agent (GPU demo build, steps 9a/9b).")
+    mode = ap.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--wav", help="one turn from a wav file")
+    mode.add_argument("--live", action="store_true", help="push-to-talk with the default microphone")
+    mode.add_argument("--script", help="several wav files as one conversation (YAML or PATH[,LABEL] lines)")
+    ap.add_argument("--user", help="user id (letters, digits, '_', '.', '-'); --script may name it instead")
     ap.add_argument("--preset", help="preset name (default: $AGENT_PRESET, else smoke_cpu)")
     ap.add_argument("--no-play", action="store_true", help="do not play audio (CSM audio is still generated)")
     args = ap.parse_args()
+
+    turns = None
+    user = args.user
+    if args.script:
+        try:
+            script_user, turns = parse_script(args.script)
+        except (OSError, ValueError) as e:
+            ap.error(str(e))
+        user = user or script_user
+    if not user:
+        ap.error("--user is required (or name the user in the --script file)")
     try:
-        check_user_id(args.user)
+        check_user_id(user)
     except ValueError as e:
         ap.error(str(e))
-    if not Path(args.wav).is_file():
+    if args.wav and not Path(args.wav).is_file():
         ap.error(f"wav file not found: {args.wav}")
 
-    # Consent before anything is loaded or recorded.
-    if not safety_module.consent_given(args.user) and not safety_module.ask_consent(args.user):
+    # Consent once, before anything is loaded and before the microphone opens.
+    if not safety_module.consent_given(user) and not safety_module.ask_consent(user):
         print("No consent: nothing was run, recorded or stored.")
         return 1
 
@@ -480,11 +698,18 @@ def _main():
     except (ValueError, RuntimeError, OSError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
+    ser = parts.get("ser_model") or {}
     print(f"preset {cfg['preset']}: parts loaded in {time.perf_counter() - t0:.1f}s  "
-          f"(tau_conf {cfg['brain']['tau_conf']}, check_in_after {cfg['brain']['check_in_after']})")
+          f"(tau_conf {cfg['brain']['tau_conf']}, check_in_after {cfg['brain']['check_in_after']}, "
+          f"emotion model {ser.get('name')}{' [FALLBACK]' if ser.get('fallback') else ''})")
     agent = LiveAgent(cfg, **parts)
-    _print_turn(agent.run_turn(args.user, args.wav))
-    return 0
+    if args.wav:
+        _print_turn(agent.run_turn(user, args.wav))
+        return 0
+    if args.script:
+        run_script(agent, user, turns)
+        return 0
+    return live_loop(agent, user, float(cfg["ser"]["max_seconds"]))
 
 
 if __name__ == "__main__":

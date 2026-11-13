@@ -107,6 +107,64 @@ def build_output(logits, index_map) -> dict:
     }
 
 
+class LabelOrderError(RuntimeError):
+    """A fine-tuned checkpoint's saved label order (best/id2label.json) disagrees with the model it holds.
+    Never caught by the pretrained fallback: a model whose outputs mean something else must not run."""
+
+
+def resolve_checkpoint(cfg):
+    """ser.checkpoint (relative to Code/; gpu/outputs/... goes to $GPU_OUTPUTS_DIR when set) -> Path, or None."""
+    value = (cfg.get("ser") or {}).get("checkpoint")
+    return code_path(value) if value else None
+
+
+def check_label_order(saved, model_id2label) -> dict:
+    """saved: best/id2label.json ({"0": {"class": "neutral", "model_label": "neu"}, ...}, written by finetune_ser.py);
+    model_id2label: the loaded model's config.id2label. Returns {index: class}; raises LabelOrderError on any
+    difference (indices, the raw label at an index, or the class it maps to)."""
+    want = {int(i): (str(v["class"]), str(v["model_label"])) for i, v in dict(saved).items()}
+    have = {int(i): str(lab) for i, lab in dict(model_id2label).items()}
+    if set(want) != set(have):
+        raise LabelOrderError(f"id2label.json has indices {sorted(want)}, the model has {sorted(have)}")
+    wrong = {i: (want[i][1], have[i]) for i in want if want[i][1] != have[i]}
+    if wrong:
+        raise LabelOrderError(f"label at index differs (id2label.json, model): {wrong}")
+    mapped = map_labels(have)
+    classes = {i: want[i][0] for i in want}
+    if mapped != classes:
+        raise LabelOrderError(f"id2label.json classes {classes} != model labels mapped to classes {mapped}")
+    return mapped
+
+
+def load_ser_with_fallback(cfg, device, dtype, model_cls=None, warn=print):
+    """(model, info). The ser.checkpoint folder (T3) if it exists, loads and passes check_label_order; otherwise
+    the pretrained ser.model with ONE warning. info = {"name", "fallback", "checkpoint", "reason"}.
+    A LabelOrderError is raised, never hidden behind the fallback."""
+    model_cls = model_cls or SERModel
+    ckpt = resolve_checkpoint(cfg)
+    reason = None
+    if ckpt is None:
+        reason = "ser.checkpoint is not set"
+    elif not ckpt.is_dir():
+        reason = f"checkpoint folder not found: {ckpt}"
+    elif not (ckpt / "id2label.json").is_file():
+        reason = f"id2label.json not found in {ckpt}"
+    else:
+        try:
+            model = model_cls(cfg, device, dtype, model_name=str(ckpt))
+        except Exception as e:  # noqa: BLE001  (any load failure -> pretrained)
+            reason = f"checkpoint failed to load ({type(e).__name__}: {str(e)[:200]})"
+        else:
+            saved = json.loads((ckpt / "id2label.json").read_text(encoding="utf-8"))
+            check_label_order(saved, model.model.config.id2label)          # raises LabelOrderError
+            return model, {"name": str(ckpt), "fallback": False, "checkpoint": str(ckpt), "reason": None}
+    name = cfg["ser"]["model"]
+    warn(f"WARNING: emotion model fallback: {reason}. Using the pretrained {name} instead.")
+    return model_cls(cfg, device, dtype, model_name=name), {"name": name, "fallback": True,
+                                                            "checkpoint": str(ckpt) if ckpt else None,
+                                                            "reason": reason}
+
+
 def true_label_from_filename(name):
     """'03_happy.wav' -> 'happy'. Returns None if the last '_' part is not one of CLASSES."""
     tag = Path(name).stem.split("_")[-1].lower()

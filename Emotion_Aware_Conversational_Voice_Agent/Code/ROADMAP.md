@@ -118,6 +118,16 @@ Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6
 - CPU tests: `tests/test_live_agent.py` (stubs)
 - Not wired yet: the "delete all my data" voice command promised in `safety.CONSENT_TEXT`; microphone / push-to-talk (9b)
 
+**Step 9b — code done, GPU and real-mic runs pending (2026-11-13)**
+- Emotion model = T3 (`ser.checkpoint` → run `gpu_24gb_20261112_1500/best`); label order checked against `best/id2label.json` (a mismatch stops); missing / failed checkpoint → pretrained fallback with one warning; every log line has `ser_model` {name, fallback}
+- **tau_conf = 0.64** (Rule B, fixed before computing: max val accuracy with val coverage ≥ 0.85; RAVDESS + CREMA-D val only). Val probs from `gpu/ser_split_probs.py` on CPU through the agent's own `SERModel` path; no-abstain val accuracy 0.78111 = the run's own best-epoch val_acc
+  - Val at 0.64: coverage 0.851 (766/900), accuracy 0.837 (no abstain: 0.781)
+  - Test, information only: coverage 0.825 (697/845), accuracy 0.801 (no abstain: 0.748); sad coverage 0.813, happy 0.706
+  - `results/metrics/ser_t3_val_probs.csv`, `ser_t3_test_probs.csv`, `abstain_curve_t3.csv`
+- Silence gate (`scripts/measure_silence_gate.py`), speech side measured on 4014 train clips: quietest pass level −60.0 dBFS (RAVDESS sad, actor 09), 1st percentile −49.1, median −29.0; the current −45 gate blocks 90/4014. **Room noise not recorded yet** → gate unchanged
+- Push-to-talk `--live` (cap = `ser.max_seconds`), delete-all by voice (spoken "yes" only; neither turn logged or stored), `--script` rehearsal mode
+- CPU tests: `tests/test_live_agent_9b.py` (stubs)
+
 ### B. MemoryManager — JSON scaffold
 - Conversation buffer (last N turns)
 - User-fact store (name, preferences) with emotion-gated write
