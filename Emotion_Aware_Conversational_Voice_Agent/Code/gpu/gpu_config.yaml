@@ -20,7 +20,7 @@ base:
 
   # The "brain": MoodManager, which turns per-turn emotion scores into a stable mood.
   brain:
-    tau_conf: 0.0      # confidence cutoff below which a turn is ignored. 0.0 = abstain off; re-chosen after step 2 for the new emotion model
+    tau_conf: 0.64     # abstain below this top-1 confidence. Rule B on T3 run gpu_24gb_20261112_1500 VALIDATION only: max val accuracy with val coverage >= 0.85 (val 766/900 kept, acc 0.837; scripts/abstain_curve_t3.py -> results/metrics/abstain_curve_t3.csv)
     gamma: 0.7         # smoothing: how much of the previous mood score carries into the next turn (0 = none, 1 = never changes)
     threshold: 0.5     # mood score above which a turn counts as distressed
     persistence: 2     # distressed turns in a row needed before the agent switches to an empathetic mode
@@ -46,6 +46,9 @@ base:
   # Speech emotion recognition (guesses the emotion from how the user sounds).
   ser:
     max_seconds: 20    # longer audio is cut to this many seconds to protect GPU memory
+    # Fine-tuned T3 model (gpu/finetune_ser.py run gpu_24gb_20261112_1500, best epoch). Under $GPU_OUTPUTS_DIR when set.
+    # If missing or it fails to load, the agent falls back to ser.model (pretrained) with a warning.
+    checkpoint: "gpu/outputs/ser_finetune/gpu_24gb_20261112_1500/best"
 
   # Text-to-speech (the agent's voice; gpu/tts_gpu.py).
   tts:
@@ -53,6 +56,13 @@ base:
     max_audio_seconds: 12    # longest audio CSM may generate for ONE sentence (stops runaway generation)
     speaker_id: "0"          # CSM speaker label used for both the reference clip and the new sentence (one stable voice)
     seed: 42                 # fixed before every generation, so voices and styles are compared on equal terms
+    tags_enabled: false      # false = remove <sigh>-style tags before speaking (base CSM-1B is not trained on them)
+
+  # Benchmark (gpu/bench_gpu.py). A run setting, not a measurement: one warm-up turn is run first and discarded,
+  # then the whole bench conversation runs this many times (median and min-max are reported per turn).
+  bench:
+    repeats: 3
+    turns_file: "gpu/bench_turns.yaml"
 
   # Where the agent writes its records.
   logging:

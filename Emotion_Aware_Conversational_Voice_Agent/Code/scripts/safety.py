@@ -259,6 +259,32 @@ def check_crisis(transcript) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------
+# Delete all my data, by voice (step 9b)
+# ---------------------------------------------------------------------------------------------
+
+# The phrase CONSENT_TEXT tells the user to say (a test keeps the two equal).
+DELETE_PHRASE = "delete all my data"
+DELETE_CONFIRM_PROMPT = (
+    "This deletes everything stored about you: your remembered facts, your consent record and your session logs. "
+    "Say yes to confirm, or anything else to cancel."
+)
+DELETE_DONE = "Done. Everything stored about you has been deleted."
+DELETE_CANCELLED = "Okay, nothing was deleted."
+
+
+def wants_delete_all(transcript) -> bool:
+    """True if the normalized transcript contains DELETE_PHRASE as whole words."""
+    return f" {normalize(DELETE_PHRASE)} " in f" {normalize(transcript)} "
+
+
+def is_spoken_yes(transcript) -> bool:
+    """Strict confirmation for a destructive action: every word is "yes" ("Yes." / "yes, yes"). Anything else,
+    including "yeah", "yes but wait" or silence, is not a yes."""
+    words = normalize(transcript).split()
+    return bool(words) and all(w == "yes" for w in words)
+
+
+# ---------------------------------------------------------------------------------------------
 # Demo
 # ---------------------------------------------------------------------------------------------
 

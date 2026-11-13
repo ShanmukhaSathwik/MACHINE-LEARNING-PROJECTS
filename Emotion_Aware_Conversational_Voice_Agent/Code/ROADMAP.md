@@ -85,6 +85,56 @@ Design principles from the workflow doc, Section 0.6. All CPU, all on existing c
 - Out-of-domain test on a fresh my-voice set (`data/my_voice_v3`), never used for tuning
 - Rerun Rule B for τ_conf with whichever model wins
 
+### GPU demo build (`gpu/`, settings in `gpu/gpu_config.yaml`)
+Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6 `asr_gpu.py`, 7 `llm_gpu.py`, 8a/8b `tts_gpu.py`, 9a `live_agent_gpu.py`; training T2/T3 `finetune_ser.py`.
+
+**GPU session 1 (2026-11-12) — measured**
+- **Training T3 — DONE**: run `gpu_24gb_20261112_1500`, `superb/hubert-large-superb-er`, 4 classes; early-stopped at epoch 7, best epoch 4, val macro-F1 0.777
+  - Test: CREMA-D acc 0.750 / macro-F1 0.745; RAVDESS acc 0.715 / macro-F1 0.676
+  - Main weakness: sad read as neutral (top error on both corpora: 61 CREMA-D and 17 RAVDESS test clips)
+  - Per-clip results: `results/metrics/ser_finetune_test_gpu_24gb_20261112_1500.csv`
+  - Fix in 182d6f5: the model-settings dict reused the name `overrides` (the CLI override list) and crashed with hubert-large; now `model_kwargs`, with a regression test in `tests/test_finetune_ser.py`
+- **Step 6 on GPU**: Whisper large-v3-turbo, WER 0.049 on 24 RAVDESS clips (all word errors / all reference words; the skipped clip counts as all words deleted), ~0.08 s per clip
+  - The −45 dBFS silence gate (`asr.silence_dbfs`) skipped one quiet sad clip (`Actor_20/03-01-04-01-01-02-20.wav`)
+  - To do: measure the silence-gate threshold
+  - `results/metrics/asr_ravdess_whisper-large-v3-turbo.csv`
+- **Step 7 on GPU**: Qwen3-8B 4-bit; all four strategies + fact extraction answered by Qwen (no fallback); first sentence in ~0.3–1.1 s
+  - Prompt fixes to do: CALM gives several steps instead of one; NEUTRAL invented a fact
+  - `results/metrics/llm_demo_qwen_Qwen3-8B.csv`
+- **Step 8a — DONE**: Expresso speaker ex02; picks saved in `gpu/voice_refs.json`: VALIDATE `ex02_default_00001_default1`; CALM and NEUTRAL `ex02_default_00002`; ENCOURAGE `ex02_happy_00002`
+- **Not yet done**: the T3 model has not been tested on `data/my_voice_v3`, so it is **not yet approved for the demo**
+
+**Step 8b — code done, not yet run on the GPU (2026-11-13)**
+- `tts_gpu.py`: `CSMVoice` (reference clip per strategy; crisis → NEUTRAL), `split_sentences`, `strip_tags` (`tts.tags_enabled: false`), `speak_stream` (next sentence generated while the previous one plays), `speak_with_fallback`; CLI `--speak` / `--fallback-test`
+- `scripts/fallback_tts.py`: pyttsx3, else the text is printed; no torch
+- CPU tests: `tests/test_tts_speak.py` (stub CSM, no audio)
+- To do on the GPU: `python gpu/tts_gpu.py --speak "..." --strategy VALIDATE --preset gpu_24gb` for each strategy → `results/metrics/tts_speak_csm.csv` (time_to_first_audio, real-time factor); listen for gaps between sentences
+
+**Step 9a — code done, not yet run on the GPU (2026-11-13)**
+- `gpu/live_agent_gpu.py`: `LiveAgent.run_turn(user_id, audio)` in a fixed order (consent → ASR → crisis → emotion → abstain → MoodManagerV2 → memory → prompt → LLM → TTS → fact extraction → JSONL log); all parts injected; no torch at import
+- Abstain threshold = `brain.tau_conf` in `gpu_config.yaml`, still **0.0 (abstain off)** until it is re-chosen for the new emotion model
+- LLM → TTS pipelined: CSM starts on the first sentence (`tts_gpu.speak_iter_with_fallback`)
+- Per-user mood / history / memory / log file; `delete_user_data(user_id)` reuses `delete_all_my_data`
+- CPU tests: `tests/test_live_agent.py` (stubs)
+- Not wired yet: the "delete all my data" voice command promised in `safety.CONSENT_TEXT`; microphone / push-to-talk (9b)
+
+**Step 9b — code done, GPU and real-mic runs pending (2026-11-13)**
+- Emotion model = T3 (`ser.checkpoint` → run `gpu_24gb_20261112_1500/best`); label order checked against `best/id2label.json` (a mismatch stops); missing / failed checkpoint → pretrained fallback with one warning; every log line has `ser_model` {name, fallback}
+- **tau_conf = 0.64** (Rule B, fixed before computing: max val accuracy with val coverage ≥ 0.85; RAVDESS + CREMA-D val only). Val probs from `gpu/ser_split_probs.py` on CPU through the agent's own `SERModel` path; no-abstain val accuracy 0.78111 = the run's own best-epoch val_acc
+  - Val at 0.64: coverage 0.851 (766/900), accuracy 0.837 (no abstain: 0.781)
+  - Test, information only: coverage 0.825 (697/845), accuracy 0.801 (no abstain: 0.748); sad coverage 0.813, happy 0.706
+  - `results/metrics/ser_t3_val_probs.csv`, `ser_t3_test_probs.csv`, `abstain_curve_t3.csv`
+- Silence gate (`scripts/measure_silence_gate.py`), speech side measured on 4014 train clips: quietest pass level −60.0 dBFS (RAVDESS sad, actor 09), 1st percentile −49.1, median −29.0; the current −45 gate blocks 90/4014. **Room noise not recorded yet** → gate unchanged
+- Push-to-talk `--live` (cap = `ser.max_seconds`), delete-all by voice (spoken "yes" only; neither turn logged or stored), `--script` rehearsal mode
+- CPU tests: `tests/test_live_agent_9b.py` (stubs)
+
+**Step 10 — code done, GPU pending (2026-11-13)**
+- `gpu/bench_gpu.py`: runs `gpu/bench_turns.yaml` through `LiveAgent` via the scripted mode; per turn the agent's own stage times, time to first audio, turn total, voice path, LLM backend, `ser_model` + fallback, abstained; peak GPU memory after load and after the run ("n/a" without CUDA); one warm-up turn discarded, then `bench.repeats` passes (median and min–max); fallbacks flagged; bench users / memory / logs kept in `gpu/outputs/bench/`
+- `gpu/bench_turns.yaml`: first test-split clip per corpus × class (no my_voice), plus a crisis text case and a delete request cancelled by "No."
+- `gpu/SESSION2_CHECKLIST.md`: home prep (room noise with enhancements off, gate only if its check passes, USB copies), GPU tests in order, results home, cleanup
+- Only a `--stub` plumbing run so far (no models; its timings are not results). CPU tests: `tests/test_bench_gpu.py`
+- To do on the GPU: `python gpu/bench_gpu.py --preset gpu_24gb` → `results/metrics/bench_gpu_24gb_<time>.csv`
+
 ### B. MemoryManager — JSON scaffold
 - Conversation buffer (last N turns)
 - User-fact store (name, preferences) with emotion-gated write

@@ -1,0 +1,19 @@
+# bench_turns.yaml - the fixed conversation gpu/bench_gpu.py runs (step 10).
+# Same format as live_agent_gpu.py --script, plus an optional `text:` per turn: the real ASR still runs on the wav
+# (so its time is measured), then the transcript is replaced by `text` (crisis / delete cases have no wav of their own).
+# Clips: the first test-split clip by utt_id for each corpus x class in data/manifests/ser_4class.csv.
+# No my_voice clips. Labels are printed only; the agent never sees them.
+turns:
+  - {wav: data/raw/Actor_16/03-01-01-01-01-01-16.wav, label: neutral}       # ravdess test
+  - {wav: data/raw/crema_d/AudioWAV/1004_DFA_NEU_XX.wav, label: neutral}    # crema_d test
+  - {wav: data/raw/Actor_16/03-01-03-01-01-01-16.wav, label: happy}
+  - {wav: data/raw/crema_d/AudioWAV/1004_DFA_HAP_XX.wav, label: happy}
+  - {wav: data/raw/Actor_16/03-01-04-01-01-01-16.wav, label: sad}
+  - {wav: data/raw/crema_d/AudioWAV/1004_DFA_SAD_XX.wav, label: sad}
+  - {wav: data/raw/Actor_16/03-01-05-01-01-01-16.wav, label: angry}
+  - {wav: data/raw/crema_d/AudioWAV/1004_DFA_ANG_XX.wav, label: angry}
+  # crisis case: transcript replaced, audio from the first clip
+  - {wav: data/raw/Actor_16/03-01-01-01-01-01-16.wav, label: crisis, text: "Honestly I just want to kill myself."}
+  # delete request, then "No." cancels it (nothing is deleted, neither turn is logged)
+  - {wav: data/raw/crema_d/AudioWAV/1004_DFA_NEU_XX.wav, label: delete-request, text: "Please delete all my data."}
+  - {wav: data/raw/crema_d/AudioWAV/1004_DFA_NEU_XX.wav, label: delete-cancel, text: "No."}
