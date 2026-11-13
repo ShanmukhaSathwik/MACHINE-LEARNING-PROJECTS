@@ -59,7 +59,8 @@ STRATEGY_INSTRUCTIONS = {
     ),
     "CALM": (
         "Use short, simple sentences at a slow, steady pace. "
-        "Offer one concrete next step they could take right now. No jokes."
+        "Suggest exactly ONE concrete next step they could take right now. "
+        "Never give a list of options or several steps. No jokes."
     ),
     "ENCOURAGE": (
         "Be warm and upbeat. Celebrate the specific things they did or said, not generic praise."
@@ -71,6 +72,11 @@ STRATEGY_INSTRUCTIONS = {
 CHECK_IN_INSTRUCTION = (
     "Check in: you are not sure how they are feeling right now. "
     "Gently ask how they are feeling instead of assuming."
+)
+# Shared by all four strategies: the agent knows only the transcript and the remembered facts.
+NO_INVENTED_FACTS_RULE = (
+    "Facts: never state facts about the world, the weather, the time, or the user "
+    "that are not in the provided facts. If there is nothing to reference, just respond to what they said."
 )
 
 
@@ -87,6 +93,7 @@ def build_system_prompt(strategy, facts=None, check_in=False) -> str:
     if facts:
         lines = "\n".join(f"- {f}" for f in facts)
         parts.append(f"Things you remember about them (use only if relevant):\n{lines}")
+    parts.append(NO_INVENTED_FACTS_RULE)
     parts.append(
         "Output rules: reply in 1 to 3 short sentences meant to be spoken aloud. "
         "Plain speech only: no markdown, no lists, no emoji, no stage directions."

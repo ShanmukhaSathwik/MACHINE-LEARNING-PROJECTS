@@ -3,6 +3,7 @@ test_prompt.py — P3 unit test (code decides, LLM speaks).
 For every strategy (with and without check_in) the system prompt must not contain an emotion label,
 a probability-like number, or the word "distress". Also checks that generate_reply returns the exact
 prompt it sent, and that the strategy -> TTS tag mapping comes from the strategy alone.
+GPU session 1 prompt fixes: CALM asks for exactly one next step; every strategy carries the no-invented-facts rule.
 """
 import json
 import re
@@ -38,6 +39,42 @@ def test_prompt_carries_its_strategy_block(strategy, check_in):
     for other in set(rg.STRATEGIES) - {strategy}:
         assert rg.STRATEGY_INSTRUCTIONS[other] not in prompt
     assert (rg.CHECK_IN_INSTRUCTION in prompt) == check_in
+
+
+def test_calm_block_asks_for_exactly_one_step():
+    calm = rg.STRATEGY_INSTRUCTIONS["CALM"]
+    assert re.search(r"\bexactly one\b[^.]*\bnext step\b", calm, re.IGNORECASE)
+    assert re.search(r"\bnever\b[^.]*\blist of options\b", calm, re.IGNORECASE)
+    assert re.search(r"\bshort\b", calm) and re.search(r"\bslow\b", calm)
+    assert calm in rg.build_system_prompt("CALM")
+
+
+FACTS = ["Their sister's wedding is next month."]
+
+
+@pytest.mark.parametrize("facts", [None, FACTS], ids=["no-facts", "with-facts"])
+@pytest.mark.parametrize("strategy,check_in", CASES)
+def test_no_invented_facts_rule_for_every_strategy(strategy, check_in, facts):
+    rule = rg.NO_INVENTED_FACTS_RULE
+    for topic in ("world", "weather", "time", "user", "provided facts"):
+        assert topic in rule
+    prompt = rg.build_system_prompt(strategy, facts=facts, check_in=check_in)
+    assert prompt.count(rule) == 1
+    assert rule not in rg.STRATEGY_INSTRUCTIONS[strategy]          # shared rule, not copied per strategy
+
+
+@pytest.mark.parametrize("strategy,check_in", CASES)
+def test_prompt_with_facts_still_has_no_emotion_label(strategy, check_in):
+    prompt = rg.build_system_prompt(strategy, facts=FACTS, check_in=check_in)
+    assert not EMOTION_RE.search(prompt), EMOTION_RE.search(prompt).group(0)
+    assert "distress" not in prompt.lower()
+    assert not NUMBER_RE.search(prompt), NUMBER_RE.search(prompt).group(0)
+    assert not SCORE_WORDS_RE.search(prompt), SCORE_WORDS_RE.search(prompt).group(0)
+
+
+def test_build_system_prompt_signature_unchanged():
+    import inspect
+    assert list(inspect.signature(rg.build_system_prompt).parameters) == ["strategy", "facts", "check_in"]
 
 
 def test_unknown_strategy_raises():
