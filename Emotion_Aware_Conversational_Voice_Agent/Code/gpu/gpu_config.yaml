@@ -53,6 +53,7 @@ base:
     max_audio_seconds: 12    # longest audio CSM may generate for ONE sentence (stops runaway generation)
     speaker_id: "0"          # CSM speaker label used for both the reference clip and the new sentence (one stable voice)
     seed: 42                 # fixed before every generation, so voices and styles are compared on equal terms
+    tags_enabled: false      # false = remove <sigh>-style tags before speaking (base CSM-1B is not trained on them)
 
   # Where the agent writes its records.
   logging:

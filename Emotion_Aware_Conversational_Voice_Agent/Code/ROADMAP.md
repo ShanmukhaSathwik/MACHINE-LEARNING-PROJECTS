@@ -86,7 +86,7 @@ Design principles from the workflow doc, Section 0.6. All CPU, all on existing c
 - Rerun Rule B for τ_conf with whichever model wins
 
 ### GPU demo build (`gpu/`, settings in `gpu/gpu_config.yaml`)
-Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6 `asr_gpu.py`, 7 `llm_gpu.py`, 8a `tts_gpu.py`; training T2/T3 `finetune_ser.py`.
+Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6 `asr_gpu.py`, 7 `llm_gpu.py`, 8a/8b `tts_gpu.py`; training T2/T3 `finetune_ser.py`.
 
 **GPU session 1 (2026-11-12) — measured**
 - **Training T3 — DONE**: run `gpu_24gb_20261112_1500`, `superb/hubert-large-superb-er`, 4 classes; early-stopped at epoch 7, best epoch 4, val macro-F1 0.777
@@ -103,6 +103,12 @@ Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6
   - `results/metrics/llm_demo_qwen_Qwen3-8B.csv`
 - **Step 8a — DONE**: Expresso speaker ex02; picks saved in `gpu/voice_refs.json`: VALIDATE `ex02_default_00001_default1`; CALM and NEUTRAL `ex02_default_00002`; ENCOURAGE `ex02_happy_00002`
 - **Not yet done**: the T3 model has not been tested on `data/my_voice_v3`, so it is **not yet approved for the demo**
+
+**Step 8b — code done, not yet run on the GPU (2026-11-13)**
+- `tts_gpu.py`: `CSMVoice` (reference clip per strategy; crisis → NEUTRAL), `split_sentences`, `strip_tags` (`tts.tags_enabled: false`), `speak_stream` (next sentence generated while the previous one plays), `speak_with_fallback`; CLI `--speak` / `--fallback-test`
+- `scripts/fallback_tts.py`: pyttsx3, else the text is printed; no torch
+- CPU tests: `tests/test_tts_speak.py` (stub CSM, no audio)
+- To do on the GPU: `python gpu/tts_gpu.py --speak "..." --strategy VALIDATE --preset gpu_24gb` for each strategy → `results/metrics/tts_speak_csm.csv` (time_to_first_audio, real-time factor); listen for gaps between sentences
 
 ### B. MemoryManager — JSON scaffold
 - Conversation buffer (last N turns)

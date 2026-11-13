@@ -19,3 +19,6 @@ librosa==1.0.0
 bitsandbytes==0.50.2
 python-dotenv==1.2.4   # reads HF_TOKEN from Code/.env
 pyyaml==6.0.3          # gpu/device.py reads gpu/gpu_config.yaml (same pin as requirements.txt)
+# Step 8b (pinned 2026-11-13 from the versions already installed in .venv312):
+sounddevice==0.5.6     # tts_gpu.py plays CSM audio in a background thread; scripts/record.py records the mic
+pyttsx3==2.99          # scripts/fallback_tts.py, the voice when CSM fails (Windows: SAPI5 via pywin32/comtypes)
