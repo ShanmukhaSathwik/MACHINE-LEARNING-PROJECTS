@@ -1,0 +1,25 @@
+set,file,emotion,reference,text,wer,skipped,reason,audio_seconds,asr_seconds,model
+ravdess,data/raw/Actor_16/03-01-02-02-02-01-16.wav,neutral,dogs are sitting by the door,Dogs are sitting by the door.,0.0,False,,3.804,0.5418,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_20/03-01-01-01-01-02-20.wav,neutral,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.57,0.0811,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_17/03-01-01-01-01-01-17.wav,neutral,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.837,0.0776,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_17/03-01-02-01-01-01-17.wav,neutral,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.503,0.0752,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_20/03-01-01-01-02-02-20.wav,neutral,dogs are sitting by the door,Dogs are sitting by the door.,0.0,False,,3.537,0.077,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_19/03-01-01-01-02-02-19.wav,neutral,dogs are sitting by the door,Dogs are sitting by the door.,0.0,False,,3.303,0.0763,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_16/03-01-03-01-02-01-16.wav,happy,dogs are sitting by the door,Dogs are sitting by the door.,0.0,False,,3.737,0.076,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_20/03-01-03-02-01-02-20.wav,happy,kids are talking by the door,The kids are talking by the door!,0.1667,False,,4.304,0.0838,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_20/03-01-03-01-01-01-20.wav,happy,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.537,0.0739,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_17/03-01-03-02-01-02-17.wav,happy,kids are talking by the door,Kids are talking by the door!,0.0,False,,4.104,0.0807,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_19/03-01-03-02-02-02-19.wav,happy,dogs are sitting by the door,Dogs are sitting by the door.,0.0,False,,4.004,0.0804,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_17/03-01-03-02-01-01-17.wav,happy,kids are talking by the door,Kids are talking by the door!,0.0,False,,3.737,0.0765,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_17/03-01-05-01-01-02-17.wav,angry,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.704,0.0777,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_19/03-01-05-02-01-01-19.wav,angry,kids are talking by the door,Kids are talking by the door!,0.0,False,,3.971,0.0936,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_17/03-01-05-01-02-02-17.wav,angry,dogs are sitting by the door,Dogs are sitting by the door.,0.0,False,,3.537,0.0804,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_17/03-01-05-01-01-01-17.wav,angry,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.47,0.0795,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_16/03-01-05-01-01-01-16.wav,angry,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.971,0.0779,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_19/03-01-05-01-01-01-19.wav,angry,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.77,0.0774,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_17/03-01-04-01-02-02-17.wav,sad,dogs are sitting by the door,Dogs are sitting by the door.,0.0,False,,3.604,0.0786,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_20/03-01-04-01-01-02-20.wav,sad,kids are talking by the door,,1.0,True,silence,3.503,0.0019,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_16/03-01-04-02-01-01-16.wav,sad,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.737,0.0772,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_20/03-01-04-02-01-01-20.wav,sad,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.77,0.0767,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_16/03-01-04-01-01-01-16.wav,sad,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.57,0.0766,openai/whisper-large-v3-turbo
+ravdess,data/raw/Actor_17/03-01-04-02-01-01-17.wav,sad,kids are talking by the door,Kids are talking by the door.,0.0,False,,3.67,0.077,openai/whisper-large-v3-turbo

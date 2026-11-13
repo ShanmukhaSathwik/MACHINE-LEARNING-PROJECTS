@@ -357,11 +357,11 @@ def run(args):
     # training mode, which leaves fewer hidden states than layer weights and crashes the forward pass.
     # So LayerDrop is turned off for fine-tuning (inference never drops layers, so predictions are unaffected).
     base_cfg = AutoConfig.from_pretrained(ft["base_model"])
-    overrides = {}
+    model_kwargs = {}
     if getattr(base_cfg, "use_weighted_layer_sum", False) and getattr(base_cfg, "layerdrop", 0.0) > 0:
-        overrides["layerdrop"] = 0.0
+        model_kwargs["layerdrop"] = 0.0
         print(f"\nlayerdrop {base_cfg.layerdrop} -> 0.0 (incompatible with use_weighted_layer_sum during training)")
-    model = AutoModelForAudioClassification.from_pretrained(ft["base_model"], **overrides)
+    model = AutoModelForAudioClassification.from_pretrained(ft["base_model"], **model_kwargs)
     class_to_id = label_ids(model.config.id2label)
     id_to_class = {i: c for c, i in class_to_id.items()}
     num_labels = model.config.num_labels
