@@ -1,0 +1,7 @@
+GPU session 2 - 2026-11-13
+Machine: professor's RTX 5000 Ada, 32 GB.
+Verified loading: SER (1.19 GB), Whisper large-v3-turbo (1.52 GB), Qwen3-8B 4-bit (5.68 GB), CSM-1B (6.64 GB).
+Prompt fix check: CALM gives one step, no invented facts (results/metrics/llm_demo_qwen_Qwen3-8B_20261113_100929.csv).
+Live agent: RAVDESS turn end to end; live push-to-talk turn abstained (confidence 0.48 < 0.64).
+Demo recorded with OBS (scripted + live takes). Videos and agent session logs are carried home by USB, not in git.
+Known issues: live agent plays the CSM voice and does not save it; sounddevice was missing from the venv.

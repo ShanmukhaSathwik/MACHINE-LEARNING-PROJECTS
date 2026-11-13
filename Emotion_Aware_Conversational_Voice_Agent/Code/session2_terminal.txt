@@ -1,0 +1,143 @@
+**********************
+PowerShell transcript start
+Start time: 20261113105414
+Username: UNT\va0622
+RunAs User: UNT\va0622
+Configuration Name: 
+Machine: CI-W-371BV94 (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\Program Files\PowerShell\7\pwsh.dll
+Process ID: 22920
+PSVersion: 7.6.10
+PSEdition: Core
+GitCommitId: 7.6.10
+OS: Microsoft Windows 10.0.26200
+Platform: Win32NT
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1, 6.0, 7.0
+PSRemotingProtocolVersion: 2.4
+SerializationVersion: 1.1.0.1
+WSManStackVersion: 3.0
+**********************
+Transcript started, output file is C:\shan\demo_logs\terminal_20261113_105414.txt
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) python gpu/live_agent_gpu.py --preset gpu_24gb --script C:\shan\demo_script.txt --user shan_demo
+usage: live_agent_gpu.py [-h] (--wav WAV | --live | --script SCRIPT) [--user USER] [--preset PRESET] [--no-play]
+live_agent_gpu.py: error: [Errno 2] No such file or directory: 'C:\\shan\\demo_script.txt'
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) python gpu/live_agent_gpu.py --preset gpu_24gb --live --user shan_demo
+No consent: nothing was run, recorded or stored.
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) python gpu/live_agent_gpu.py --preset gpu_24gb --live --user shan_demo
+
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) cd C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Select-String -Path gpu\gpu_config.yaml -Pattern "tau_conf" | Select-Object LineNumber, Line
+
+LineNumber Line
+---------- ----
+        23     tau_conf: 0.64     # abstain below this top-1 confidence. Rule B on T3 run gpu_24gb_20261112_1500 VALIDATION only: max val accuracy with val coverage >= 0.85 (val 766/900 kept, acc 0.837; scripts/abstain_curve_t3.py -> results/metrics/abstain_curve_t3.csv)
+
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) cd C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Copy-Item gpu\gpu_config.yaml gpu\gpu_config.yaml.bak_tau
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) (Get-Content gpu\gpu_config.yaml) -replace '^(\s*tau_conf:\s*)0\.64', '${1}0.0' | Set-Content gpu\gpu_config.yaml
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Select-String -Path gpu\gpu_config.yaml -Pattern "tau_conf" | Select-Object LineNumber, Line
+
+LineNumber Line
+---------- ----
+        23     tau_conf: 0.0     # abstain below this top-1 confidence. Rule B on T3 run gpu_24gb_20261112_1500 VALIDATION only: max val accuracy with val coverage >= 0.85 (val 766/900 kept, acc 0.837; scripts/abstain_curve_t3.py -> results/metrics/abstain_curve_t3.csv)
+
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) python gpu/live_agent_gpu.py --preset gpu_24gb --live --user shan_noabstain
+
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) python gpu/live_agent_gpu.py --preset gpu_24gb --live --user shan_noabstain
+
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) python gpu/live_agent_gpu.py --preset gpu_24gb --live --user shan_noabstain
+
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) python gpu/live_agent_gpu.py --preset gpu_24gb --live --user shan_noabstain
+
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) $code = "C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code"
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) $out  = "C:\shan\session2_export"
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) New-Item -ItemType Directory -Force "$out\recordings", "$out\terminal_logs", "$out\agent_logs", "$out\metrics" | Out-Null
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Copy-Item C:\shan\recordings\* "$out\recordings" -Recurse -ErrorAction SilentlyContinue
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Copy-Item C:\shan\demo_logs\* "$out\terminal_logs" -ErrorAction SilentlyContinue
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Copy-Item C:\shan\demo_script.txt $out -ErrorAction SilentlyContinue
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Get-ChildItem "$code\results\logs" -Filter "session_*" -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -gt (Get-Date).Date } |
+    Copy-Item -Destination "$out\agent_logs"
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Get-ChildItem "$code\results\metrics" -Filter *.csv |
+    Where-Object { $_.LastWriteTime -gt (Get-Date).Date } |
+    Copy-Item -Destination "$out\metrics"
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Compress-Archive -Path "$out\*" -DestinationPath C:\shan\session2_export.zip -Force
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Get-ChildItem $out -Recurse -File | Select-Object FullName, @{n="MB";e={[math]::Round($_.Length/1MB,2)}}
+
+FullName                                                                           MB
+--------                                                                           --
+C:\shan\session2_export\agent_logs\session_shan_demo_20261113T165610Z.jsonl      0.00
+C:\shan\session2_export\agent_logs\session_shan_noabstain_20261113T170516Z.jsonl 0.01
+C:\shan\session2_export\agent_logs\session_shan_noabstain_20261113T173932Z.jsonl 0.01
+C:\shan\session2_export\agent_logs\session_shan_noabstain_20261113T175332Z.jsonl 0.01
+C:\shan\session2_export\agent_logs\session_shan_test_20261113T161429Z.jsonl      0.00
+C:\shan\session2_export\agent_logs\session_shan_test_20261113T161646Z.jsonl      0.00
+C:\shan\session2_export\agent_logs\session_shan_test_20261113T162500Z.jsonl      0.00
+C:\shan\session2_export\metrics\abstain_curve_t3.csv                             0.01
+C:\shan\session2_export\metrics\llm_demo_qwen_Qwen3-8B_20261113_100929.csv       0.00
+C:\shan\session2_export\metrics\my_voice_v3_ser_eval.csv                         0.00
+C:\shan\session2_export\metrics\ser_t3_test_probs.csv                            0.09
+C:\shan\session2_export\metrics\ser_t3_val_probs.csv                             0.09
+C:\shan\session2_export\terminal_logs\terminal_20261113_105414.txt               0.01
+
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Get-Volume | Where-Object DriveType -eq "Removable" | Select-Object DriveLetter, FileSystemLabel
+
+DriveLetter FileSystemLabel
+----------- ---------------
+          D UBUNTU 22_0
+
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Copy-Item C:\shan\session2_export.zip D:\ -Force
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) Test-Path D:\session2_export.zip
+True
+PS C:\shan\MACHINE-LEARNING-PROJECTS\Emotion_Aware_Conversational_Voice_Agent\Code>
+(.venv_gpu) cd C:\shan\MACHINE-LEARNING-PROJECTS
+PS C:\shan\MACHINE-LEARNING-PROJECTS>
+(.venv_gpu) $code = "Emotion_Aware_Conversational_Voice_Agent\Code"
+PS C:\shan\MACHINE-LEARNING-PROJECTS>
+(.venv_gpu) $req = "$code\gpu\requirements_gpu.txt"
+PS C:\shan\MACHINE-LEARNING-PROJECTS>
+(.venv_gpu) if (-not (Select-String -Path $req -Pattern "sounddevice" -Quiet)) { Add-Content $req "sounddevice" }
+PS C:\shan\MACHINE-LEARNING-PROJECTS>
+PS C:\shan\MACHINE-LEARNING-PROJECTS>
+(.venv_gpu) $latest = Get-ChildItem C:\shan\demo_logs -Filter "terminal_*.txt" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+PS C:\shan\MACHINE-LEARNING-PROJECTS>
