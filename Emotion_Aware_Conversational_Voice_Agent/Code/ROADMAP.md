@@ -86,7 +86,7 @@ Design principles from the workflow doc, Section 0.6. All CPU, all on existing c
 - Rerun Rule B for τ_conf with whichever model wins
 
 ### GPU demo build (`gpu/`, settings in `gpu/gpu_config.yaml`)
-Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6 `asr_gpu.py`, 7 `llm_gpu.py`, 8a/8b `tts_gpu.py`; training T2/T3 `finetune_ser.py`.
+Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6 `asr_gpu.py`, 7 `llm_gpu.py`, 8a/8b `tts_gpu.py`, 9a `live_agent_gpu.py`; training T2/T3 `finetune_ser.py`.
 
 **GPU session 1 (2026-11-12) — measured**
 - **Training T3 — DONE**: run `gpu_24gb_20261112_1500`, `superb/hubert-large-superb-er`, 4 classes; early-stopped at epoch 7, best epoch 4, val macro-F1 0.777
@@ -109,6 +109,14 @@ Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6
 - `scripts/fallback_tts.py`: pyttsx3, else the text is printed; no torch
 - CPU tests: `tests/test_tts_speak.py` (stub CSM, no audio)
 - To do on the GPU: `python gpu/tts_gpu.py --speak "..." --strategy VALIDATE --preset gpu_24gb` for each strategy → `results/metrics/tts_speak_csm.csv` (time_to_first_audio, real-time factor); listen for gaps between sentences
+
+**Step 9a — code done, not yet run on the GPU (2026-11-13)**
+- `gpu/live_agent_gpu.py`: `LiveAgent.run_turn(user_id, audio)` in a fixed order (consent → ASR → crisis → emotion → abstain → MoodManagerV2 → memory → prompt → LLM → TTS → fact extraction → JSONL log); all parts injected; no torch at import
+- Abstain threshold = `brain.tau_conf` in `gpu_config.yaml`, still **0.0 (abstain off)** until it is re-chosen for the new emotion model
+- LLM → TTS pipelined: CSM starts on the first sentence (`tts_gpu.speak_iter_with_fallback`)
+- Per-user mood / history / memory / log file; `delete_user_data(user_id)` reuses `delete_all_my_data`
+- CPU tests: `tests/test_live_agent.py` (stubs)
+- Not wired yet: the "delete all my data" voice command promised in `safety.CONSENT_TEXT`; microphone / push-to-talk (9b)
 
 ### B. MemoryManager — JSON scaffold
 - Conversation buffer (last N turns)

@@ -609,6 +609,49 @@ def speak_with_fallback(text, strategy, voice=None, crisis=False, play=True) -> 
     return record
 
 
+def speak_iter_with_fallback(sentences, strategy, voice=None, crisis=False, play=True) -> dict:
+    """speak_with_fallback for a STREAM of sentences (step 9a: the live agent feeds LLM.stream_reply in, so CSM
+    starts on the first sentence while the LLM is still writing the rest). Same record, same log line.
+    On any CSM exception (or with no voice) the sentences not yet spoken, plus whatever the stream still holds,
+    go to scripts/fallback_tts.speak (tags stripped). Never raises for a CSM failure."""
+    it = iter(sentences)
+    consumed = []
+
+    def feed():
+        for s in it:
+            consumed.append(s)
+            yield s
+
+    record = {"path": None, "strategy": strategy, "crisis": bool(crisis), "csm_sentences": 0,
+              "error": None, "stats": None}
+    if voice is None:
+        record["error"] = "no CSMVoice loaded"
+    else:
+        try:
+            for _ in voice.speak_stream(feed(), strategy, crisis=crisis, play=play):
+                pass
+            if not consumed:
+                record["path"] = "none"
+                return record
+            record.update(path="csm", csm_sentences=len(consumed), stats=getattr(voice, "last_stream", None))
+            log.info("tts path=csm strategy=%s crisis=%s sentences=%d", strategy, bool(crisis), len(consumed))
+            return record
+        except Exception as e:  # noqa: BLE001  (any CSM failure -> fallback)
+            record["error"] = f"{type(e).__name__}: {e}"
+            stats = getattr(voice, "last_stream", None) or {}
+            record["stats"] = stats or None
+            record["csm_sentences"] = int(stats.get("played" if play else "generated", 0) or 0)
+    try:
+        remaining = list(it)
+    except Exception:  # noqa: BLE001  (a broken stream: speak what we have)
+        remaining = []
+    rest = strip_tags(" ".join(consumed[record["csm_sentences"]:] + remaining))
+    record["path"] = fallback_tts.speak(rest)
+    log.warning("tts path=%s (fallback) strategy=%s crisis=%s csm_sentences=%d reason=%s",
+                record["path"], strategy, bool(crisis), record["csm_sentences"], record["error"])
+    return record
+
+
 # ---------------------------------------------------------------------------------------------
 # Expresso access (through gpu/explore_expresso.py)
 # ---------------------------------------------------------------------------------------------
