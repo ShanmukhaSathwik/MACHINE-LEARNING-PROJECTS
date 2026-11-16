@@ -99,7 +99,7 @@ Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6
   - To do: measure the silence-gate threshold
   - `results/metrics/asr_ravdess_whisper-large-v3-turbo.csv`
 - **Step 7 on GPU**: Qwen3-8B 4-bit; all four strategies + fact extraction answered by Qwen (no fallback); first sentence in ~0.3–1.1 s
-  - Prompt fixes to do: CALM gives several steps instead of one; NEUTRAL invented a fact
+  - Prompt fixes (6474ab2): CALM gave several steps instead of one; NEUTRAL invented a fact. **Closed in GPU session 2** (rerun passed, see below)
   - `results/metrics/llm_demo_qwen_Qwen3-8B.csv`
 - **Step 8a — DONE**: Expresso speaker ex02; picks saved in `gpu/voice_refs.json`: VALIDATE `ex02_default_00001_default1`; CALM and NEUTRAL `ex02_default_00002`; ENCOURAGE `ex02_happy_00002`
 - **Not yet done**: the T3 model has not been tested on `data/my_voice_v3`, so it is **not yet approved for the demo**
@@ -134,6 +134,20 @@ Steps as numbered in the `gpu/*.py` docstrings: 1 `device.py`, 2 `ser_gpu.py`, 6
 - `gpu/SESSION2_CHECKLIST.md`: home prep (room noise with enhancements off, gate only if its check passes, USB copies), GPU tests in order, results home, cleanup
 - Only a `--stub` plumbing run so far (no models; its timings are not results). CPU tests: `tests/test_bench_gpu.py`
 - To do on the GPU: `python gpu/bench_gpu.py --preset gpu_24gb` → `results/metrics/bench_gpu_24gb_<time>.csv`
+
+**GPU session 2 (2026-11-13) — measured**
+Sources: `session2_notes.txt`, `session2_terminal.txt`, `results/metrics/llm_demo_qwen_Qwen3-8B_20261113_100929.csv`; agent logs (7 `session_*.jsonl`, 16 turns) and 2 demo videos kept outside git (USB `session2_export.zip` + `live demo/`)
+- **Models loaded on the RTX 5000 Ada (32 GB)**: T3 SER 1.19 GB, Whisper large-v3-turbo 1.52 GB, Qwen3-8B 4-bit 5.68 GB, CSM-1B 6.64 GB
+- **Qwen prompt-fix rerun — PASSED**: CALM gives one step, NEUTRAL invents no fact; all 4 strategies + fact extraction answered by Qwen (no fallback); first sentence 0.36–0.80 s
+- **Live agent (9a/9b) end to end**: T3 loaded with no fallback on all 16 turns (2 RAVDESS wav turns, 14 push-to-talk turns, users `shan_test` / `shan_demo` / `shan_noabstain`)
+  - First RAVDESS turn fell back to text voice (`No module named 'sounddevice'`); after installing it, 15/15 turns spoke with CSM
+  - CSM turns: time to first audio median 6.55 s (3.91–14.02), turn total median 25.1 s (18.1–44.5); CSM takes 16.5–41.3 s of each turn. Push-to-talk turns (`shan_noabstain`): ASR median 0.54 s, LLM median 0.79 s
+  - With tau_conf 0.64, both scored push-to-talk turns abstained (confidence 0.48 and 0.63)
+- **Abstain-off run** (`tau_conf` set to 0.0 on the GPU machine only, never committed; 12 turns): **strategy stayed NEUTRAL on every turn**
+  - Per-turn emotion: happy 6, sad 5, neutral 1, angry 0 (the angry work story was read as happy, 0.73)
+  - Mood never held ≥ 0.50 for 2 turns: max sad 0.43, happy 0.47, angry 0.01. MoodManagerV2 worked as designed; the alternating happy/sad perception is the limit (matches my_voice_v3 12/32)
+- **Not run**: CSM `--speak` per strategy, crisis voice check, `bench_gpu.py`, room-noise silence gate
+- **Known issues**: live agent plays the CSM voice but does not save the wav; test memories (`shan_test`, `shan_demo`, `shan_noabstain`) may still be on the professor's machine
 
 ### B. MemoryManager — JSON scaffold
 - Conversation buffer (last N turns)
