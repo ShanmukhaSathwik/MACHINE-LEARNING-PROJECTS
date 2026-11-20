@@ -63,7 +63,8 @@ class FakeEmbedder(EmbeddingFunction):
 
 
 def fake_cosine(a, b):
-    u, v = FakeEmbedder.vector(a), FakeEmbedder.vector(b)
+    """Cosine of the fake embeddings, worked out by hand in float64 (count vectors are exact in float32 too)."""
+    u, v = FakeEmbedder.vector(a).astype(np.float64), FakeEmbedder.vector(b).astype(np.float64)
     return float(np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v)))
 
 
@@ -274,6 +275,41 @@ def test_retrieve_keys_formula_and_top_k(tmp_path, mm):
     assert len(mm.retrieve_relevant("alice", query)) == 3              # cfg top_k
     assert len(mm.retrieve_relevant("alice", query, top_k=1)) == 1
     assert mm.retrieve_relevant("alice", "   ") == []
+
+
+def test_similarity_is_exact_cosine(mm):
+    facts = ["The user has a big chemistry exam on Monday morning.", "The user dreads Monday meetings at work.",
+             "The user likes jazz and blues music.", "The user eats pizza on Monday."]
+    for i, f in enumerate(facts):
+        mm.store("alice", f, i, MOOD, 0.5)
+    query = "worried about the chemistry exam on Monday morning"
+    hits = mm.retrieve_relevant("alice", query, top_k=10)
+    assert {h["fact"] for h in hits} == set(facts)
+    for h in hits:                                                     # exact, not an index approximation
+        assert h["similarity"] == pytest.approx(fake_cosine(query, h["fact"]), rel=1e-12, abs=1e-12)
+    # by hand: query {worried, chemistry, exam, monday, morning}, fact {big, chemistry, exam, monday, morning}
+    assert hits[0]["similarity"] == pytest.approx(4 / np.sqrt(5 * 5), rel=1e-12)
+
+
+def test_all_facts_scored_even_with_many_more_than_top_k(tmp_path):
+    cfg = {**CFG, "top_k": 3}
+    with ChromaMemoryManager(tmp_path / "vs_many", cfg, embedding_function=FakeEmbedder()) as mm:
+        target = mm.store("alice", "The user has a violin recital next spring.", 0, MOOD, 0.0)   # oldest, lowest importance
+        for i in range(1, 200):
+            mm.store("alice", f"The user collected stamp{i} and coin{i} last year.", i, MOOD, 0.5)
+        mm.store("bob", "The user has a violin recital next spring.", 0, MOOD, 1.0)            # never alice's
+        assert len(mm.list_user_facts("alice")) == 200
+        everything = mm.retrieve_relevant("alice", "nervous about my violin recital", top_k=1000)
+        assert len(everything) == 200 and {h["memory_id"] for h in everything} >= {target}
+        best = mm.retrieve_relevant("alice", "nervous about my violin recital", top_k=1)
+        assert [h["memory_id"] for h in best] == [target]
+        assert len(mm.retrieve_relevant("alice", "nervous about my violin recital")) == 3
+
+
+def test_cosine_similarities_normalises_and_handles_zero_vectors():
+    sims = memory_manager.cosine_similarities([3.0, 4.0], [[6.0, 8.0], [-4.0, 3.0], [0.0, 0.0], [1.0, 0.0]])
+    assert sims.tolist() == pytest.approx([1.0, 0.0, 0.0, 0.6])
+    assert memory_manager.cosine_similarities([0.0, 0.0], [[1.0, 2.0]]).tolist() == [0.0]
 
 
 def test_min_similarity_is_applied_before_scoring(open_store):

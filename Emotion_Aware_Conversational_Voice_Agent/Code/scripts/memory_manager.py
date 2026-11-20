@@ -19,8 +19,9 @@ Importance (importance_from_turn): intensity = 1 - p_neutral (0 on an abstained 
 
 Retrieval (retrieve_relevant, same signature and return keys {memory_id, fact, similarity, importance, score}):
     JSON:   similarity = Jaccard word overlap (lowercased, stopwords removed); only similarity > 0 is returned.
-    Chroma: similarity = 1 - cosine distance between MiniLM embeddings (chromadb's DefaultEmbeddingFunction,
-            all-MiniLM-L6-v2 on ONNX). Every one of this user's facts is scored; a fact with
+    Chroma: similarity = exact cosine (numpy, both vectors normalised) between the query's MiniLM embedding and
+            each stored fact embedding (chromadb's DefaultEmbeddingFunction, all-MiniLM-L6-v2 on ONNX); Chroma's
+            approximate HNSW index is not used for scoring. Every one of this user's facts is scored; a fact with
             similarity < memory.min_similarity is dropped BEFORE scoring, so high importance can never pull an
             unrelated fact back in. min_similarity is a placeholder (0.0) until step D3 picks it from labelled pairs.
     Both:   score = w_similarity * similarity + w_importance * importance; best score first (newest on a tie), top_k.
@@ -50,6 +51,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import yaml
 
 from safety import DEFAULT_CONSENT_PATH, revoke_consent
@@ -120,6 +122,16 @@ def jaccard(a, b) -> float:
     if not wa or not wb:
         return 0.0
     return len(wa & wb) / len(wa | wb)
+
+
+def cosine_similarities(query_vec, matrix) -> "np.ndarray":
+    """Exact cosine of query_vec with each row of matrix, in float64. Both sides are normalised here (embedders
+    are not assumed to return unit vectors); a row or query that is all zeros gets similarity 0.0."""
+    q = np.asarray(query_vec, dtype=np.float64).ravel()
+    m = np.asarray(matrix, dtype=np.float64).reshape(-1, q.size)
+    denom = np.linalg.norm(m, axis=1) * np.linalg.norm(q)
+    dots = m @ q
+    return np.divide(dots, denom, out=np.zeros_like(dots), where=denom > 0)
 
 
 def importance_from_turn(probs, abstained, cfg) -> tuple:
@@ -468,21 +480,23 @@ class ChromaMemoryManager(BaseMemoryManager):
 
     def retrieve_relevant(self, user_id, query, top_k=None) -> list:
         """[{memory_id, fact, similarity, importance, score}], best score first, at most top_k (default cfg top_k).
-        Scores ALL of this user's facts: similarity = 1 - cosine distance; similarity < min_similarity is dropped
-        before scoring; score = w_similarity * similarity + w_importance * importance; ties -> newest first."""
+        Scores ALL of this user's facts exactly (not Chroma's approximate HNSW index): similarity = cosine between
+        the query embedding and each stored embedding, both normalised here (0.0 if either is all zeros);
+        similarity < min_similarity is dropped before scoring; score = w_similarity * similarity +
+        w_importance * importance; ties -> newest first."""
         _check_user_id(user_id)
         k = int(self.cfg["top_k"] if top_k is None else top_k)
         w_sim, w_imp = float(self.cfg["w_similarity"]), float(self.cfg["w_importance"])
         min_sim = float(self.cfg["min_similarity"])
-        n = len(self._col.get(where={"user_id": user_id}, include=[])["ids"])
-        if n == 0 or not isinstance(query, str) or not query.strip():
+        if not isinstance(query, str) or not query.strip():
             return []
-        res = self._col.query(query_texts=[query], n_results=n, where={"user_id": user_id},
-                              include=["documents", "metadatas", "distances"])
+        got = self._col.get(where={"user_id": user_id}, include=["embeddings", "documents", "metadatas"])
+        if not got["ids"]:
+            return []
+        sims = cosine_similarities(self._embed([query])[0], got["embeddings"])
         hits = []
-        for memory_id, fact, md, dist in zip(res["ids"][0], res["documents"][0], res["metadatas"][0],
-                                             res["distances"][0]):
-            sim = 1.0 - float(dist)
+        for memory_id, fact, md, sim in zip(got["ids"], got["documents"], got["metadatas"], sims):
+            sim = float(sim)
             if sim < min_sim:
                 continue
             imp = float(md["importance"])

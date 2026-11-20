@@ -1,0 +1,41 @@
+query_id,query,relevant_fact_ids,case_type,split
+q01,I'm dreading the probability final on Thursday.,f01,paraphrase,test
+q02,Gotta write three thousand words about the French Revolution by Friday.,f02,paraphrase,test
+q03,My best mate and I haven't spoken since that big argument.,f19,paraphrase,tune
+q04,The examiner is gonna watch me parallel park on Tuesday.,f04,paraphrase,tune
+q05,"Ugh, pulling espresso for eight hours on Saturday again.",f05,paraphrase,test
+q06,Still no reply from any of the tech companies I sent my CV to.,f06,paraphrase,tune
+q07,My kid sis is terrified about ninth grade.,f07,paraphrase,test
+q08,Mom and I have our weekly catch-up on the phone tonight.,f08,paraphrase,tune
+q09,I keep missing my family and my old bedroom.,f09,paraphrase,tune
+q10,Our drummer quit right before the gig.,f10,paraphrase,test
+q11,My statistics exam is tomorrow and I'm so nervous.,f01,direct,test
+q12,I finished my first watercolor painting today.,f11,direct,tune
+q13,I have to give my presentation tomorrow in front of the whole class.,f03;f17,direct,tune
+q14,I passed my driving test today!,f04;f16,direct,tune
+q15,They gave me another weekend shift at the coffee shop.,f05,direct,tune
+q16,I'm so excited for our hiking trip over spring break.,f15,direct,tune
+q17,I went for a run in the park this morning.,f12,direct,test
+q18,I'm trying a new vegetarian curry recipe tonight.,f13,direct,test
+q19,My roommate left dirty dishes all over the kitchen again.,f18,direct,test
+q20,The movers are coming tomorrow to help me get into my new apartment.,f20,direct,test
+q21,Do you know any good coffee table books?,,word_trap,tune
+q22,Can you test if my microphone is working?,,word_trap,test
+q23,There's a car alarm going off outside and it's so annoying.,,word_trap,tune
+q24,What's the history of the Eiffel Tower?,,word_trap,test
+q25,My laptop keeps running really slowly.,,word_trap,tune
+q26,My watch band snapped this morning.,,word_trap,tune
+q27,What's the tallest apartment building in the world?,,word_trap,test
+q28,The tide is really high at the beach today.,,word_trap,tune
+q29,Do you think robots can be friends with people?,,word_trap,test
+q30,"Mother Nature really hates me today, it's pouring.",,word_trap,test
+q31,"Hey, how's it going?",,none,tune
+q32,What time is it?,,none,test
+q33,Tell me a joke.,,none,tune
+q34,"Thanks, that's all for now.",,none,tune
+q35,What's the capital of Australia?,,none,test
+q36,Hi there!,,none,test
+q37,Can you turn the volume up?,,none,test
+q38,How do octopuses breathe?,,none,tune
+q39,"Okay, never mind.",,none,tune
+q40,What's your favourite colour?,,none,test
