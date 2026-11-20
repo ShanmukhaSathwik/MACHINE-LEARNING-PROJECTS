@@ -158,6 +158,7 @@ Sources: `session2_notes.txt`, `session2_terminal.txt`, `results/metrics/llm_dem
 - ABSTAIN turns don't raise `importance_score` (P2)
 
 ### D. RAG upgrade (MemoryManager v2)
+- **D1 done (2026-11-19):** chromadb 1.5.9 + onnxruntime 1.32.0 in .venv312 (no pinned package changed). `scripts/check_embedder.py`: Chroma's DefaultEmbeddingFunction (all-MiniLM-L6-v2, ONNX, CPU) → 384-dim, cosine A–B 0.2991 vs A–C 0.0682, first call 10.986 s with the one-time 79.3 MB download (0.637 s with model cached), second call 0.411–0.462 s; torch not imported → PASS. `tests/test_embedder.py` added; test_embedder + test_memory + test_live_agent: 68 passed
 - Replace JSON fact store with Chroma/FAISS
 - MiniLM embeddings + emotion-weighted retrieval
 - Integrate into agent loop

@@ -11,3 +11,4 @@ seaborn
 xgboost
 openai-whisper==20250625
 google-genai==2.34.0
+chromadb
