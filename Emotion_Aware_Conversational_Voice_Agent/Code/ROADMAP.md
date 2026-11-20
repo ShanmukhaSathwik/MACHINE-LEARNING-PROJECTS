@@ -159,6 +159,7 @@ Sources: `session2_notes.txt`, `session2_terminal.txt`, `results/metrics/llm_dem
 
 ### D. RAG upgrade (MemoryManager v2)
 - **D1 done (2026-11-19):** chromadb 1.5.9 + onnxruntime 1.32.0 in .venv312 (no pinned package changed). `scripts/check_embedder.py`: Chroma's DefaultEmbeddingFunction (all-MiniLM-L6-v2, ONNX, CPU) → 384-dim, cosine A–B 0.2991 vs A–C 0.0682, first call 10.986 s with the one-time 79.3 MB download (0.637 s with model cached), second call 0.411–0.462 s; torch not imported → PASS. `tests/test_embedder.py` added; test_embedder + test_memory + test_live_agent: 68 passed
+- **D2 done (2026-11-19):** `ChromaMemoryManager` next to the JSON `MemoryManager` in `scripts/memory_manager.py` (shared `BaseMemoryManager.delete_all_my_data`; `make_memory_manager` picks by `memory.backend`, still `"json"`; CLI `--backend json|chroma`). New config keys `backend`, `vector_store_dir` (`vector_store/`, already git-ignored), `min_similarity` (placeholder 0.0 until D3). Chroma: cosine collection "memories", every user fact scored, similarity < min_similarity dropped before scoring. Real MiniLM test: query "I'm stressed about Monday." → exam fact similarity 0.2991 (score 0.3594) ranks above pizza fact 0.0682 (score 0.1977). `tests/test_memory_chroma.py` 20 passed; with test_memory + test_fact_extractor + test_live_agent + test_embedder: 126 passed. Agent still uses JSON (wiring is D4)
 - Replace JSON fact store with Chroma/FAISS
 - MiniLM embeddings + emotion-weighted retrieval
 - Integrate into agent loop

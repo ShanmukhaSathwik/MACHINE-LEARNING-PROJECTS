@@ -35,9 +35,13 @@ def mm(tmp_path):
 
 def test_config_block_matches_spec():
     conf = load_memory_config()
-    assert conf["memory"] == CFG
+    assert {k: conf["memory"][k] for k in CFG} == CFG
+    # Task D step D2 keys (chroma backend only; json stays the default until step D4)
+    assert {k: v for k, v in conf["memory"].items() if k not in CFG} == {
+        "backend": "json", "vector_store_dir": "vector_store", "min_similarity": 0.0}
     assert conf["memory_file"] == CODE_DIR / "data" / "memories.json"
     assert conf["log_dir"] == CODE_DIR / "results" / "logs"
+    assert conf["vector_store_dir"] == CODE_DIR / "vector_store"
 
 
 def test_missing_config_key_is_a_clear_error(tmp_path):

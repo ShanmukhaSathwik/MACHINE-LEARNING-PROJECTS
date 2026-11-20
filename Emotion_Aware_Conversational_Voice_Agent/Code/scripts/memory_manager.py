@@ -1,29 +1,42 @@
 """
 memory_manager.py
-Demo step 5: long-term memory of short facts about the user, kept in one JSON file.
-Brain only: no torch, no models, nothing imported from gpu/ (the config is read straight from gpu/gpu_config.yaml).
+Demo step 5 / Task D step D2: long-term memory of short facts about the user, with two backends:
+    MemoryManager        - one JSON file (logging.memory_file, data/memories.json); word-overlap retrieval.
+    ChromaMemoryManager  - a Chroma folder (memory.vector_store_dir, vector_store/); MiniLM meaning-match retrieval.
+make_memory_manager(conf) picks one from memory.backend ("json" or "chroma"; json until step D4).
+Brain only: no torch, nothing imported from gpu/ (the config is read straight from gpu/gpu_config.yaml).
+chromadb is imported only inside ChromaMemoryManager, so importing this module never needs it.
 
-Record (one per fact):
+Record (one per fact, same shape from both backends):
     {memory_id (uuid4 hex), user_id, timestamp (ISO-8601 UTC), source: "user_turn", turn_id,
      fact, mood_snapshot (dict), importance (0..1)}
     source is always "user_turn": facts only ever come from what the user said, never from the agent's reply.
+    Chroma keeps fact as the document and the rest as metadata (mood_snapshot as a JSON string; a None turn_id
+    is left out, because Chroma metadata cannot hold None).
 
 Importance (importance_from_turn): intensity = 1 - p_neutral (0 on an abstained turn);
     importance = base + (1 - base) * intensity; spike = intensity >= spike_threshold.
 
-Retrieval (retrieve_relevant): similarity = Jaccard word overlap (lowercased, stopwords removed);
-    score = w_similarity * similarity + w_importance * importance; only similarity > 0 is returned.
-    This is the JSON stand-in; the Chroma version later keeps the same signature.
+Retrieval (retrieve_relevant, same signature and return keys {memory_id, fact, similarity, importance, score}):
+    JSON:   similarity = Jaccard word overlap (lowercased, stopwords removed); only similarity > 0 is returned.
+    Chroma: similarity = 1 - cosine distance between MiniLM embeddings (chromadb's DefaultEmbeddingFunction,
+            all-MiniLM-L6-v2 on ONNX). Every one of this user's facts is scored; a fact with
+            similarity < memory.min_similarity is dropped BEFORE scoring, so high importance can never pull an
+            unrelated fact back in. min_similarity is a placeholder (0.0) until step D3 picks it from labelled pairs.
+    Both:   score = w_similarity * similarity + w_importance * importance; best score first (newest on a tie), top_k.
+
+Duplicates (both): a new fact whose normalized text equals, or whose word overlap is >= 0.8 with, one of this
+    user's facts updates that record's timestamp, keeps the higher importance and returns the existing memory_id.
 
 Privacy: users never see each other's memories. delete / reset_user_memory remove records for real.
-delete_all_my_data also revokes consent (safety.revoke_consent) and removes that user's session logs
-(session_<user_id>_<stamp>.jsonl, see session_log_filename) - but never a file tracked by git.
-Writes are atomic (temp file + replace). A corrupt file raises MemoryFileError and is never replaced.
-The memory file (logging.memory_file, data/memories.json) is git-ignored.
+delete_all_my_data (shared by both backends) also revokes consent (safety.revoke_consent) and removes that
+user's session logs (session_<user_id>_<stamp>.jsonl, see session_log_filename) - but never a file tracked by git.
+JSON writes are atomic (temp file + replace). A corrupt file raises MemoryFileError and is never replaced.
+The memory file and vector_store/ are git-ignored.
 
-CLI:  python scripts/memory_manager.py --user NAME --list
-      python scripts/memory_manager.py --user NAME --forget MEMORY_ID
-      python scripts/memory_manager.py --user NAME --delete-all
+CLI:  python scripts/memory_manager.py --user NAME --list              [--backend json|chroma]
+      python scripts/memory_manager.py --user NAME --forget MEMORY_ID  [--backend json|chroma]
+      python scripts/memory_manager.py --user NAME --delete-all        [--backend json|chroma]
 """
 
 import argparse
@@ -46,6 +59,9 @@ CONFIG_PATH = CODE_DIR / "gpu" / "gpu_config.yaml"
 SOURCE = "user_turn"
 DUPLICATE_OVERLAP = 0.8      # word overlap at or above which a new fact updates an old one instead of adding
 REQUIRED_KEYS = ("top_k", "w_similarity", "w_importance", "base_importance", "spike_threshold", "max_fact_words")
+CHROMA_REQUIRED_KEYS = REQUIRED_KEYS + ("min_similarity",)
+BACKENDS = ("json", "chroma")
+COLLECTION = "memories"
 
 # Words that carry no topic. "user" is here because every stored fact starts with "The user ...".
 STOPWORDS = frozenset("""
@@ -69,14 +85,17 @@ class MemoryFileError(RuntimeError):
 # ---------------------------------------------------------------------------------------------
 
 def load_memory_config(config_path=CONFIG_PATH) -> dict:
-    """{"memory": base.memory, "memory_file": Path, "log_dir": Path} from gpu_config.yaml (base only;
-    no preset changes memory). Paths are resolved relative to Code/."""
+    """{"memory": base.memory, "memory_file": Path, "log_dir": Path, "vector_store_dir": Path | None} from
+    gpu_config.yaml (base only; no preset changes memory). Paths are resolved relative to Code/.
+    vector_store_dir is None when memory.vector_store_dir is not set (only the chroma backend needs it)."""
     with open(config_path, encoding="utf-8") as f:
         base = yaml.safe_load(f)["base"]
+    store = base["memory"].get("vector_store_dir")
     return {
         "memory": dict(base["memory"]),
         "memory_file": CODE_DIR / base["logging"]["memory_file"],
         "log_dir": CODE_DIR / base["logging"]["log_dir"],
+        "vector_store_dir": CODE_DIR / store if store else None,
     }
 
 
@@ -149,17 +168,84 @@ def _check_user_id(user_id) -> None:
         raise ValueError(f"user_id must be a non-empty string, got {user_id!r}")
 
 
+def _check_cfg(cfg_memory, keys) -> None:
+    missing = [k for k in keys if k not in cfg_memory]
+    if missing:
+        raise ValueError(f"memory config is missing {missing} (see base.memory in gpu/gpu_config.yaml)")
+
+
+def _check_fact(fact, importance) -> tuple:
+    """Shared store() validation. Returns (stripped fact, importance as float)."""
+    if not isinstance(fact, str) or not fact.strip():
+        raise ValueError("fact must be a non-empty string")
+    importance = float(importance)
+    if not 0.0 <= importance <= 1.0:
+        raise ValueError(f"importance must be in [0, 1], got {importance}")
+    return fact.strip(), importance
+
+
+def _is_duplicate(old_fact, fact) -> bool:
+    """Same normalized text, or word overlap >= DUPLICATE_OVERLAP."""
+    return normalize_text(old_fact) == normalize_text(fact) or jaccard(old_fact, fact) >= DUPLICATE_OVERLAP
+
+
+# ---------------------------------------------------------------------------------------------
+# Shared by both backends
+# ---------------------------------------------------------------------------------------------
+
+class BaseMemoryManager:
+    """What does not depend on where facts are stored. Subclasses provide reset_user_memory (and the rest)."""
+
+    def reset_user_memory(self, user_id) -> int:          # pragma: no cover - always overridden
+        raise NotImplementedError
+
+    def delete_all_my_data(self, user_id, log_dir, consent_path=DEFAULT_CONSENT_PATH) -> dict:
+        """reset_user_memory + safety.revoke_consent + remove this user's session logs in log_dir
+        (session_<user_id>_<stamp>.jsonl). A log file tracked by git is never removed: it is skipped and reported."""
+        _check_user_id(user_id)
+        report = {
+            "user_id": user_id,
+            "memories_removed": self.reset_user_memory(user_id),
+            "consent_revoked": revoke_consent(user_id, consent_path),
+            "logs_removed": [],
+            "logs_skipped_tracked": [],
+            "logs_skipped_unchecked": [],
+        }
+        log_dir = Path(log_dir)
+        if log_dir.is_dir():
+            for f in sorted(log_dir.iterdir()):
+                if not (f.is_file() and is_user_session_log(f.name, user_id)):
+                    continue
+                tracked = git_tracked(f)
+                if tracked is True:
+                    report["logs_skipped_tracked"].append(f.name)
+                elif tracked is None:
+                    report["logs_skipped_unchecked"].append(f.name)
+                else:
+                    f.unlink()
+                    report["logs_removed"].append(f.name)
+        return report
+
+    def close(self) -> None:
+        """Release open handles. Nothing to do for the JSON file; Chroma releases its folder."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+
 # ---------------------------------------------------------------------------------------------
 # MemoryManager
 # ---------------------------------------------------------------------------------------------
 
-class MemoryManager:
+class MemoryManager(BaseMemoryManager):
     """JSON-file memory. Every call reads the file fresh, so two instances on one file stay consistent."""
 
     def __init__(self, path, cfg_memory: dict):
-        missing = [k for k in REQUIRED_KEYS if k not in cfg_memory]
-        if missing:
-            raise ValueError(f"memory config is missing {missing} (see base.memory in gpu/gpu_config.yaml)")
+        _check_cfg(cfg_memory, REQUIRED_KEYS)
         self.path = Path(path)
         self.cfg = dict(cfg_memory)
 
@@ -201,18 +287,12 @@ class MemoryManager:
         text, or word overlap >= 0.8) updates that record's timestamp, keeps the higher importance,
         and returns the existing memory_id instead."""
         _check_user_id(user_id)
-        if not isinstance(fact, str) or not fact.strip():
-            raise ValueError("fact must be a non-empty string")
-        importance = float(importance)
-        if not 0.0 <= importance <= 1.0:
-            raise ValueError(f"importance must be in [0, 1], got {importance}")
-        fact = fact.strip()
+        fact, importance = _check_fact(fact, importance)
         records = self._load()
-        norm = normalize_text(fact)
         for r in records:
             if r["user_id"] != user_id:
                 continue
-            if normalize_text(r["fact"]) == norm or jaccard(r["fact"], fact) >= DUPLICATE_OVERLAP:
+            if _is_duplicate(r["fact"], fact):
                 r["timestamp"] = _now_iso()
                 r["importance"] = max(float(r["importance"]), importance)
                 self._save(records)
@@ -251,32 +331,7 @@ class MemoryManager:
             self._save(keep)
         return removed
 
-    def delete_all_my_data(self, user_id, log_dir, consent_path=DEFAULT_CONSENT_PATH) -> dict:
-        """reset_user_memory + safety.revoke_consent + remove this user's session logs in log_dir
-        (session_<user_id>_<stamp>.jsonl). A log file tracked by git is never removed: it is skipped and reported."""
-        _check_user_id(user_id)
-        report = {
-            "user_id": user_id,
-            "memories_removed": self.reset_user_memory(user_id),
-            "consent_revoked": revoke_consent(user_id, consent_path),
-            "logs_removed": [],
-            "logs_skipped_tracked": [],
-            "logs_skipped_unchecked": [],
-        }
-        log_dir = Path(log_dir)
-        if log_dir.is_dir():
-            for f in sorted(log_dir.iterdir()):
-                if not (f.is_file() and is_user_session_log(f.name, user_id)):
-                    continue
-                tracked = git_tracked(f)
-                if tracked is True:
-                    report["logs_skipped_tracked"].append(f.name)
-                elif tracked is None:
-                    report["logs_skipped_unchecked"].append(f.name)
-                else:
-                    f.unlink()
-                    report["logs_removed"].append(f.name)
-        return report
+    # delete_all_my_data: BaseMemoryManager
 
     # -- read --
 
@@ -310,6 +365,149 @@ class MemoryManager:
 
 
 # ---------------------------------------------------------------------------------------------
+# ChromaMemoryManager
+# ---------------------------------------------------------------------------------------------
+
+class ChromaMemoryManager(BaseMemoryManager):
+    """Chroma-folder memory: one collection "memories" (cosine distance) in store_dir.
+    id = memory_id, document = fact, metadata = the other record fields (+ "seq", a per-user counter that orders
+    records stored within the same clock tick; it is never returned). embedding_function defaults to chromadb's
+    DefaultEmbeddingFunction (all-MiniLM-L6-v2 on ONNX, no torch); tests pass a fake one. Call close() (or use
+    `with`) to release the folder - on Windows it stays locked while the client is open."""
+
+    def __init__(self, store_dir, cfg_memory: dict, embedding_function=None):
+        _check_cfg(cfg_memory, CHROMA_REQUIRED_KEYS)
+        import chromadb                                   # here, not at module top: importing memory_manager needs no chromadb
+        from chromadb.config import Settings
+        from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
+        self.path = Path(store_dir)
+        self.cfg = dict(cfg_memory)
+        self.path.mkdir(parents=True, exist_ok=True)
+        self._embed = embedding_function if embedding_function is not None else DefaultEmbeddingFunction()
+        self._client = chromadb.PersistentClient(path=str(self.path), settings=Settings(anonymized_telemetry=False))
+        self._col = self._client.get_or_create_collection(
+            COLLECTION, embedding_function=self._embed, configuration={"hnsw": {"space": "cosine"}})
+
+    def close(self) -> None:
+        client, self._client, self._col = getattr(self, "_client", None), None, None
+        if client is not None:
+            client.close()
+
+    # -- record <-> chroma --
+
+    def _user_rows(self, user_id) -> list:
+        """[(memory_id, fact, metadata)] for this user, unordered."""
+        got = self._col.get(where={"user_id": user_id}, include=["documents", "metadatas"])
+        return list(zip(got["ids"], got["documents"], got["metadatas"]))
+
+    @staticmethod
+    def _to_record(memory_id, fact, md) -> dict:
+        return {
+            "memory_id": memory_id,
+            "user_id": md["user_id"],
+            "timestamp": md["timestamp"],
+            "source": md["source"],
+            "turn_id": md.get("turn_id"),
+            "fact": fact,
+            "mood_snapshot": json.loads(md["mood_snapshot"]),
+            "importance": float(md["importance"]),
+        }
+
+    # -- write --
+
+    def store(self, user_id, fact, turn_id, mood_snapshot, importance) -> str:
+        """Add a fact; returns its memory_id. Same validation and duplicate rule as MemoryManager.store."""
+        _check_user_id(user_id)
+        fact, importance = _check_fact(fact, importance)
+        if turn_id is not None and not isinstance(turn_id, (str, int, float, bool)):
+            raise ValueError(f"turn_id must be None, a string or a number for the chroma backend, got {turn_id!r}")
+        rows = self._user_rows(user_id)
+        seq = max((int(md.get("seq", 0)) for _, _, md in rows), default=0) + 1
+        for memory_id, old_fact, md in rows:
+            if _is_duplicate(old_fact, fact):
+                self._col.update(ids=[memory_id], metadatas=[{
+                    "timestamp": _now_iso(), "seq": seq,
+                    "importance": max(float(md["importance"]), importance)}])
+                return memory_id
+        memory_id = uuid.uuid4().hex
+        md = {"user_id": user_id, "timestamp": _now_iso(), "source": SOURCE, "importance": importance,
+              "mood_snapshot": json.dumps(dict(mood_snapshot or {}), ensure_ascii=False), "seq": seq}
+        if turn_id is not None:
+            md["turn_id"] = turn_id
+        self._col.add(ids=[memory_id], documents=[fact], metadatas=[md])
+        return memory_id
+
+    def delete(self, user_id, memory_id) -> bool:
+        """Remove one record from Chroma for real. False for an unknown id or another user's memory."""
+        _check_user_id(user_id)
+        if not isinstance(memory_id, str) or not memory_id:
+            return False
+        got = self._col.get(ids=[memory_id], include=["metadatas"])
+        if not got["ids"] or got["metadatas"][0].get("user_id") != user_id:
+            return False
+        self._col.delete(ids=[memory_id])
+        return True
+
+    def reset_user_memory(self, user_id) -> int:
+        """Remove all of this user's facts (no one else's). Returns how many were removed."""
+        _check_user_id(user_id)
+        ids = self._col.get(where={"user_id": user_id}, include=[])["ids"]
+        if ids:
+            self._col.delete(ids=ids)
+        return len(ids)
+
+    # -- read --
+
+    def list_user_facts(self, user_id) -> list:
+        """This user's records, newest first, same dict shape as MemoryManager (mood_snapshot as a dict)."""
+        _check_user_id(user_id)
+        rows = sorted(self._user_rows(user_id), key=lambda r: (r[2]["timestamp"], int(r[2].get("seq", 0))),
+                      reverse=True)
+        return [self._to_record(*r) for r in rows]
+
+    def retrieve_relevant(self, user_id, query, top_k=None) -> list:
+        """[{memory_id, fact, similarity, importance, score}], best score first, at most top_k (default cfg top_k).
+        Scores ALL of this user's facts: similarity = 1 - cosine distance; similarity < min_similarity is dropped
+        before scoring; score = w_similarity * similarity + w_importance * importance; ties -> newest first."""
+        _check_user_id(user_id)
+        k = int(self.cfg["top_k"] if top_k is None else top_k)
+        w_sim, w_imp = float(self.cfg["w_similarity"]), float(self.cfg["w_importance"])
+        min_sim = float(self.cfg["min_similarity"])
+        n = len(self._col.get(where={"user_id": user_id}, include=[])["ids"])
+        if n == 0 or not isinstance(query, str) or not query.strip():
+            return []
+        res = self._col.query(query_texts=[query], n_results=n, where={"user_id": user_id},
+                              include=["documents", "metadatas", "distances"])
+        hits = []
+        for memory_id, fact, md, dist in zip(res["ids"][0], res["documents"][0], res["metadatas"][0],
+                                             res["distances"][0]):
+            sim = 1.0 - float(dist)
+            if sim < min_sim:
+                continue
+            imp = float(md["importance"])
+            hits.append({"memory_id": memory_id, "fact": fact, "similarity": sim, "importance": imp,
+                         "score": w_sim * sim + w_imp * imp, "_order": (md["timestamp"], int(md.get("seq", 0)))})
+        hits.sort(key=lambda h: (h["score"], h["_order"]), reverse=True)
+        for h in hits:
+            del h["_order"]
+        return hits[:max(k, 0)]
+
+
+def make_memory_manager(conf: dict, embedding_function=None) -> BaseMemoryManager:
+    """MemoryManager or ChromaMemoryManager from load_memory_config() output, by conf["memory"]["backend"]
+    (missing -> "json"). embedding_function is passed to Chroma only (tests use a fake one)."""
+    backend = conf["memory"].get("backend", "json")
+    if backend == "json":
+        return MemoryManager(conf["memory_file"], conf["memory"])
+    if backend == "chroma":
+        if not conf.get("vector_store_dir"):
+            raise ValueError("memory.backend is 'chroma' but memory.vector_store_dir is not set in gpu/gpu_config.yaml")
+        return ChromaMemoryManager(conf["vector_store_dir"], conf["memory"], embedding_function)
+    raise ValueError(f"unknown memory.backend {backend!r}; expected one of {BACKENDS}")
+
+
+# ---------------------------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------------------------
 
@@ -322,11 +520,20 @@ def main(argv=None, input_fn=input) -> int:
     mode.add_argument("--delete-all", action="store_true",
                       help="delete all my data: memories, consent record and session logs (asks first)")
     ap.add_argument("--memory-file", help="memory file (default: logging.memory_file in gpu_config.yaml)")
+    ap.add_argument("--backend", choices=BACKENDS, help="override memory.backend in gpu_config.yaml")
     args = ap.parse_args(argv)
 
-    conf = load_memory_config()
-    mm = MemoryManager(Path(args.memory_file) if args.memory_file else conf["memory_file"], conf["memory"])
+    conf = dict(load_memory_config())
+    conf["memory"] = dict(conf["memory"])
+    if args.backend:
+        conf["memory"]["backend"] = args.backend
+    if args.memory_file:
+        conf["memory_file"] = Path(args.memory_file)
+    with make_memory_manager(conf) as mm:
+        return _run_cli(args, mm, conf, input_fn)
 
+
+def _run_cli(args, mm, conf, input_fn) -> int:
     if args.list:
         facts = mm.list_user_facts(args.user)
         print(f"{len(facts)} memories for {args.user!r} in {mm.path}")

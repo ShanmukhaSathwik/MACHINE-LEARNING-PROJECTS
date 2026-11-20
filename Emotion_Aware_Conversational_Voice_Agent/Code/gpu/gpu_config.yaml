@@ -70,14 +70,17 @@ base:
     memory_file: "data/memories.json" # facts the agent remembers about the user between sessions
 
   # Long-term memory of facts about the user (scripts/memory_manager.py, scripts/fact_extractor.py).
-  # The file itself is logging.memory_file above.
+  # The JSON file is logging.memory_file above; the Chroma store is vector_store_dir below.
   memory:
     top_k: 3               # most facts recalled per turn and handed to the reply prompt
-    w_similarity: 0.7      # recall score = w_similarity x word overlap with what the user just said ...
+    w_similarity: 0.7      # recall score = w_similarity x similarity to what the user just said ...
     w_importance: 0.3      # ... + w_importance x how important the fact was when it was stored
     base_importance: 0.3   # importance of a fact said calmly (or on a turn where the emotion model abstained)
     spike_threshold: 0.6   # emotional intensity (1 - neutral probability) at or above this counts as a strong emotional moment
     max_fact_words: 25     # an extracted fact longer than this many words is thrown away
+    backend: "json"                   # where facts live: "json" (word overlap) or "chroma" (MiniLM meaning match); stays json until step D4
+    vector_store_dir: "vector_store"  # Chroma's folder, relative to Code/ (git-ignored); only used by the chroma backend
+    min_similarity: 0.0    # placeholder, chosen in step D3 from labelled pairs: a fact less similar than this is never recalled (chroma only)
 
   # Fine-tuning the speech emotion model on RAVDESS + CREMA-D (gpu/finetune_ser.py).
   finetune:
