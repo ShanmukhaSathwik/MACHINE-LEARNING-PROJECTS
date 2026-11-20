@@ -42,4 +42,5 @@ relevant fact and share no content word with any fact.
 
 ## Provenance
 
-Labels drafted by Claude Code, reviewed and approved by Shan on TODO.
+Labels drafted by Claude Code, reviewed and approved by Shan on 2026-11-19.
+Review change: q09 ("I keep missing my family and my old bedroom.") also recalls f08 (calls their mother weekly).

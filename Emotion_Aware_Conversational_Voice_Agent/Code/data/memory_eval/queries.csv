@@ -7,7 +7,7 @@ q05,"Ugh, pulling espresso for eight hours on Saturday again.",f05,paraphrase,te
 q06,Still no reply from any of the tech companies I sent my CV to.,f06,paraphrase,tune
 q07,My kid sis is terrified about ninth grade.,f07,paraphrase,test
 q08,Mom and I have our weekly catch-up on the phone tonight.,f08,paraphrase,tune
-q09,I keep missing my family and my old bedroom.,f09,paraphrase,tune
+q09,I keep missing my family and my old bedroom.,f08;f09,paraphrase,tune
 q10,Our drummer quit right before the gig.,f10,paraphrase,test
 q11,My statistics exam is tomorrow and I'm so nervous.,f01,direct,test
 q12,I finished my first watercolor painting today.,f11,direct,tune
