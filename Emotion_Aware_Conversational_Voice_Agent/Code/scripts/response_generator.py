@@ -78,6 +78,11 @@ NO_INVENTED_FACTS_RULE = (
     "Facts: never state facts about the world, the weather, the time, or the user "
     "that are not in the provided facts. If there is nothing to reference, just respond to what they said."
 )
+# Step D4: recalled facts can be off-topic (meaning match is not perfect), so the LLM is told plainly when to skip them.
+MEMORY_GUARD = (
+    "Use a remembered fact only if it is about what they just said. "
+    "If it is not about what they just said, do not mention it at all."
+)
 
 
 def build_system_prompt(strategy, facts=None, check_in=False) -> str:
@@ -92,7 +97,7 @@ def build_system_prompt(strategy, facts=None, check_in=False) -> str:
         parts.append(CHECK_IN_INSTRUCTION)
     if facts:
         lines = "\n".join(f"- {f}" for f in facts)
-        parts.append(f"Things you remember about them (use only if relevant):\n{lines}")
+        parts.append(f"Things you remember about them:\n{lines}\n{MEMORY_GUARD}")
     parts.append(NO_INVENTED_FACTS_RULE)
     parts.append(
         "Output rules: reply in 1 to 3 short sentences meant to be spoken aloud. "

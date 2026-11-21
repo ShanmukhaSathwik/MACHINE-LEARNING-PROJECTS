@@ -3,7 +3,7 @@ memory_manager.py
 Demo step 5 / Task D step D2: long-term memory of short facts about the user, with two backends:
     MemoryManager        - one JSON file (logging.memory_file, data/memories.json); word-overlap retrieval.
     ChromaMemoryManager  - a Chroma folder (memory.vector_store_dir, vector_store/); MiniLM meaning-match retrieval.
-make_memory_manager(conf) picks one from memory.backend ("json" or "chroma"; json until step D4).
+make_memory_manager(conf) picks one from memory.backend ("json" or "chroma"; chroma since step D4).
 Brain only: no torch, nothing imported from gpu/ (the config is read straight from gpu/gpu_config.yaml).
 chromadb is imported only inside ChromaMemoryManager, so importing this module never needs it.
 
@@ -238,6 +238,12 @@ class BaseMemoryManager:
                     report["logs_removed"].append(f.name)
         return report
 
+    backend = None                                        # "json" / "chroma", set by each subclass
+
+    def warm_up(self):
+        """Load anything slow now instead of on the first turn. Nothing to do for JSON; Chroma loads its embedder."""
+        return self
+
     def close(self) -> None:
         """Release open handles. Nothing to do for the JSON file; Chroma releases its folder."""
 
@@ -255,6 +261,8 @@ class BaseMemoryManager:
 
 class MemoryManager(BaseMemoryManager):
     """JSON-file memory. Every call reads the file fresh, so two instances on one file stay consistent."""
+
+    backend = "json"
 
     def __init__(self, path, cfg_memory: dict):
         _check_cfg(cfg_memory, REQUIRED_KEYS)
@@ -400,6 +408,15 @@ class ChromaMemoryManager(BaseMemoryManager):
         self._client = chromadb.PersistentClient(path=str(self.path), settings=Settings(anonymized_telemetry=False))
         self._col = self._client.get_or_create_collection(
             COLLECTION, embedding_function=self._embed, configuration={"hnsw": {"space": "cosine"}})
+
+    backend = "chroma"
+
+    def warm_up(self):
+        """Embed one dummy string so the model downloads / loads now (raises if it cannot). Returns self."""
+        vecs = self._embed(["warm-up"])
+        if len(vecs) != 1 or not len(vecs[0]):
+            raise RuntimeError("embedding function returned no vector")
+        return self
 
     def close(self) -> None:
         client, self._client, self._col = getattr(self, "_client", None), None, None

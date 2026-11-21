@@ -14,6 +14,8 @@ Rule: min_similarity = the LOWEST cutoff with FRR <= 0.10 on the tune split (1e-
 Reported per split at the chosen cutoff: recall, FRR, recall@3 (positives >= cutoff AND among the query's 3
     highest-similarity facts, ties by fact_id), paraphrase recall, direct recall, word_trap queries with >= 1 false
     recall, none queries with >= 1 recall.
+    Step D4 (reported only, not part of the rule): queries with at least one negative fact among their 3
+    highest-similarity facts that is >= the cutoff (count and share, overall and per case type).
 
 This script does not change gpu/gpu_config.yaml; the chosen value is copied there by hand.
 
@@ -108,6 +110,15 @@ def recall_at_k(query_ids, fact_ids, similarities, labels, cutoff, k=TOP_K) -> f
     return int(ok.sum()) / int(y.sum())
 
 
+def queries_with_negative_in_top_k(query_ids, fact_ids, similarities, labels, cutoff, k=TOP_K) -> set:
+    """query_ids with at least one NEGATIVE fact among their k highest-similarity facts (ties by fact_id) that is
+    also >= cutoff, i.e. a wrong fact the agent would actually recall. Reported only; not part of the rule."""
+    s = np.asarray(similarities, dtype=np.float64)
+    y = np.asarray(labels).astype(bool)
+    bad = top_k_mask(query_ids, fact_ids, s, k) & (s >= cutoff) & ~y
+    return set(np.asarray(list(query_ids), dtype=object)[bad])
+
+
 def split_report(pairs: pd.DataFrame, cutoff) -> dict:
     """Every reported number for one split's pairs (columns query_id, fact_id, case_type, label, similarity)."""
     s, y = pairs["similarity"].to_numpy(), pairs["label"].to_numpy()
@@ -127,6 +138,14 @@ def split_report(pairs: pd.DataFrame, cutoff) -> dict:
     direct, direct_hit, direct_n = case_recall("direct")
     trap_k, trap_n = queries_with("word_trap", hit & ~y.astype(bool))
     none_k, none_n = queries_with("none", hit)
+    flagged = queries_with_negative_in_top_k(pairs["query_id"], pairs["fact_id"], s, y, cutoff, TOP_K)
+    n_q = int(pairs["query_id"].nunique())
+    by_case = {}
+    for ct in CASE_TYPES:
+        q_ct = set(pairs.loc[pairs["case_type"] == ct, "query_id"])
+        if q_ct:
+            k_ct = len(flagged & q_ct)
+            by_case[ct] = {"count": k_ct, "queries": len(q_ct), "share": k_ct / len(q_ct)}
     return {
         "n_queries": int(pairs["query_id"].nunique()), "n_pairs": int(len(pairs)),
         "n_positives": n_pos, "n_negatives": n_neg,
@@ -136,6 +155,8 @@ def split_report(pairs: pd.DataFrame, cutoff) -> dict:
         "direct_recall": direct, "direct_recalled": direct_hit, "direct_positives": direct_n,
         "word_trap_queries_with_false_recall": trap_k, "word_trap_queries": trap_n,
         "none_queries_with_recall": none_k, "none_queries": none_n,
+        "queries_with_negative_in_top3": len(flagged), "queries_with_negative_in_top3_share": len(flagged) / n_q,
+        "queries_with_negative_in_top3_by_case_type": by_case,
     }
 
 
@@ -255,6 +276,10 @@ def main(argv=None) -> int:
                   f"direct recall {r['direct_recall']:.4f} ({r['direct_recalled']}/{r['direct_positives']}), "
                   f"word_trap queries with a false recall {r['word_trap_queries_with_false_recall']}/{r['word_trap_queries']}, "
                   f"none queries with a recall {r['none_queries_with_recall']}/{r['none_queries']}")
+            by = r["queries_with_negative_in_top3_by_case_type"]
+            print(f"        queries with a negative fact in their top 3 and >= cutoff: "
+                  f"{r['queries_with_negative_in_top3']}/{r['n_queries']} ({r['queries_with_negative_in_top3_share']:.4f}); "
+                  + ", ".join(f"{ct} {v['count']}/{v['queries']}" for ct, v in by.items()))
     text = pairs.merge(queries[["query_id", "query"]], on="query_id").merge(facts[["fact_id", "fact"]], on="fact_id")
     for title, part in (("5 positive pairs with the LOWEST similarity",
                          text[text["label"] == 1].nsmallest(5, "similarity")),

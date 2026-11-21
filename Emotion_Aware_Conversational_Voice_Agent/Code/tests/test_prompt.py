@@ -72,6 +72,18 @@ def test_prompt_with_facts_still_has_no_emotion_label(strategy, check_in):
     assert not SCORE_WORDS_RE.search(prompt), SCORE_WORDS_RE.search(prompt).group(0)
 
 
+@pytest.mark.parametrize("strategy,check_in", CASES)
+def test_memory_guard_present_whenever_facts_are_given(strategy, check_in):
+    guard = rg.MEMORY_GUARD
+    assert "only if it is about what they just said" in guard and "do not mention it at all" in guard
+    with_facts = rg.build_system_prompt(strategy, facts=FACTS + ["Their dog is called a good boy."], check_in=check_in)
+    assert with_facts.count(guard) == 1
+    block = with_facts.split("Things you remember about them:\n", 1)[1]
+    assert block.startswith("- " + FACTS[0]) and guard in block.split("\n\n", 1)[0]   # guard sits in the facts block
+    assert guard not in rg.build_system_prompt(strategy, facts=None, check_in=check_in)
+    assert guard not in rg.build_system_prompt(strategy, facts=[], check_in=check_in)
+
+
 def test_build_system_prompt_signature_unchanged():
     import inspect
     assert list(inspect.signature(rg.build_system_prompt).parameters) == ["strategy", "facts", "check_in"]

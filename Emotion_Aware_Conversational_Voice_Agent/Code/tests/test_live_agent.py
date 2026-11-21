@@ -21,7 +21,7 @@ import response_generator
 import safety
 from device import load_config
 from live_agent_gpu import LOG_FIELDS, REPEAT_PROMPT, STAGES, AgentVoice, LiveAgent, TurnLogger
-from memory_manager import MemoryManager
+from memory_manager import ChromaMemoryManager, MemoryManager
 from mood_manager import CHECK_IN_AFTER, MoodManagerV2
 
 CODE_DIR = Path(__file__).resolve().parent.parent
@@ -138,7 +138,8 @@ class RecLogger(TurnLogger):
 class World:
     """A LiveAgent on stubs + real memory / consent / mood / crisis check on temporary files."""
 
-    def __init__(self, tmp_path, tau=None, consent=("alice",), llm_fail=None, voice_fail=False):
+    def __init__(self, tmp_path, tau=None, consent=("alice",), llm_fail=None, voice_fail=False, memory=None,
+                 memory_backend=None):
         self.cfg = load_config("gpu_24gb")
         self.events = []
         self.consent_path = tmp_path / "consent.json"
@@ -153,8 +154,10 @@ class World:
             m.events = self.events
             return m
 
-        self.memory = RecMemory(tmp_path / "memories.json", self.cfg["memory"])
-        self.memory.events = self.events
+        if memory is None:
+            memory = RecMemory(tmp_path / "memories.json", self.cfg["memory"])
+            memory.events = self.events
+        self.memory = memory
         self.logger = RecLogger(tmp_path / "logs")
         self.logger.events = self.events
         self.asr, self.emotion = StubASR(self.events), StubEmotion(self.events)
@@ -162,7 +165,8 @@ class World:
         self.extract_calls = []
         self.agent = LiveAgent(self.cfg, asr=self.asr, emotion=self.emotion, llm=self.llm, voice=self.voice,
                                memory=self.memory, logger=self.logger, safety=StubSafety(self.events),
-                               mood_factory=mood_factory, consent_path=self.consent_path, extract_fn=self.extract)
+                               mood_factory=mood_factory, consent_path=self.consent_path, extract_fn=self.extract,
+                               memory_backend=memory_backend)
 
     def extract(self, user_transcript, llm_fn, emotional_spike=False):
         self.events.append("extract")
@@ -336,6 +340,7 @@ def test_log_line_has_every_required_field(world):
     assert line["mood_params"]["tau_conf"] == world.cfg["brain"]["tau_conf"]
     assert line["retrieved_memories"] and set(line["retrieved_memories"][0]) == \
         {"memory_id", "similarity", "importance", "score"}
+    assert line["memory_backend"] == "json" and line["min_similarity"] is None   # word overlap applies no cutoff
     assert set(line["timings"]) == set(STAGES[:-1]) | {"total"}
     assert line["reply"] == " ".join(REPLY)
 
@@ -388,6 +393,74 @@ def test_delete_user_data_wipes_memories_logs_and_session_state(tmp_path):
     assert w.memory.retrieve_relevant("alice", "exam Monday") == []
     assert len(w.memory.list_user_facts("bob")) == 1 and w.logger.path_for("bob").exists()   # bob untouched
     assert w.turn("Thinking about Monday's exam.", user="alice")["status"] == "refused"      # consent revoked
+
+
+# ---------------------------------------------------------------- chroma backend (step D4)
+
+def _fake_embedder():
+    pytest.importorskip("chromadb")
+    from test_memory_chroma import FakeEmbedder                  # hashed bag of words: no model, no network
+    return FakeEmbedder()
+
+
+def test_chroma_backend_in_the_agent_and_delete_user_data(tmp_path):
+    cfg_memory = load_config("gpu_24gb")["memory"]
+    memory, backend = live_agent_gpu.build_memory(cfg_memory, tmp_path / "memories.json", tmp_path / "vs",
+                                                  embedding_function=_fake_embedder())
+    assert backend == "chroma" and isinstance(memory, ChromaMemoryManager)
+    try:
+        w = World(tmp_path, consent=("alice", "bob"), memory=memory, memory_backend=backend)
+        r1 = w.turn("I have an exam on Monday.", fact="The user has an exam on Monday.", user="alice")
+        w.turn("I love hiking on weekends.", fact="The user loves hiking on weekends.", user="bob")
+        r2 = w.turn("Thinking about Monday's exam.", user="alice")
+        assert [m["memory_id"] for m in r2["retrieved_memories"]] == [r1["stored_memory_id"]]
+        assert set(r2["retrieved_memories"][0]) == {"memory_id", "similarity", "importance", "score"}
+        assert "The user has an exam on Monday." in w.llm.calls[-1]["system_prompt"]
+        line = w.log_lines()[-1]
+        assert line["memory_backend"] == "chroma" and line["min_similarity"] == cfg_memory["min_similarity"] == 0.15
+        assert not (tmp_path / "memories.json").exists()                     # facts went to Chroma, not JSON
+
+        report = w.agent.delete_user_data("alice")
+        assert report["memories_removed"] == 1 and report["consent_revoked"] is True
+        assert report["logs_removed"] == [w.logger.path_for("alice").name]
+        assert not w.logger.path_for("alice").exists() and "alice" not in w.agent._users
+        assert memory.list_user_facts("alice") == [] and memory.retrieve_relevant("alice", "exam Monday") == []
+        assert len(memory.list_user_facts("bob")) == 1 and w.logger.path_for("bob").exists()   # bob untouched
+        assert w.turn("Thinking about Monday's exam.", user="alice")["status"] == "refused"
+    finally:
+        memory.close()
+
+
+def test_chroma_failure_falls_back_to_json_with_a_warning(tmp_path, monkeypatch):
+    warnings = []
+
+    def broken(conf, embedding_function=None):
+        raise RuntimeError("model could not load (test)")
+
+    monkeypatch.setattr(live_agent_gpu, "make_memory_manager", broken)
+    cfg_memory = load_config("gpu_24gb")["memory"]
+    memory, backend = live_agent_gpu.build_memory(cfg_memory, tmp_path / "memories.json", tmp_path / "vs",
+                                                  warn=warnings.append)
+    assert backend == "json-fallback" and type(memory) is MemoryManager
+    assert len(warnings) == 1 and warnings[0].startswith("WARNING") and "model could not load" in warnings[0]
+    w = World(tmp_path, memory=memory, memory_backend=backend)
+    w.turn("I have an exam on Monday.", fact="The user has an exam on Monday.")
+    line = w.log_lines()[-1]
+    assert line["memory_backend"] == "json-fallback" and line["min_similarity"] is None
+    assert (tmp_path / "memories.json").exists()
+
+
+def test_build_memory_json_backend_and_unknown_backend(tmp_path):
+    cfg_memory = {**load_config("gpu_24gb")["memory"], "backend": "json"}
+    memory, backend = live_agent_gpu.build_memory(cfg_memory, tmp_path / "m.json", tmp_path / "vs")
+    assert backend == "json" and type(memory) is MemoryManager and not (tmp_path / "vs").exists()
+    with pytest.raises(ValueError, match="unknown memory.backend"):
+        live_agent_gpu.build_memory({**cfg_memory, "backend": "faiss"}, tmp_path / "m.json", tmp_path / "vs")
+
+
+def test_config_switches_the_agent_to_chroma():
+    assert load_config("gpu_24gb")["memory"]["backend"] == "chroma"
+    assert load_config("smoke_cpu")["memory"]["min_similarity"] == 0.15
 
 
 @pytest.mark.parametrize("bad", ["", "../etc", "a/b", "a\\b", ".hidden", "_x", None, 3])
@@ -513,7 +586,8 @@ def test_agent_voice_routes_text_and_streams_and_forces_neutral_on_crisis(tmp_pa
 
 def test_module_import_loads_no_torch_and_no_gpu_module():
     code = (f"import sys; sys.path.insert(0, {str(CODE_DIR / 'gpu')!r}); import live_agent_gpu; "
-            "bad = [m for m in ('torch', 'transformers', 'device', 'asr_gpu', 'ser_gpu', 'llm_gpu', 'tts_gpu') "
+            "bad = [m for m in ('torch', 'transformers', 'chromadb', 'device', 'asr_gpu', 'ser_gpu', 'llm_gpu', "
+            "'tts_gpu') "
             "if m in sys.modules]; print(bad)")
     out = subprocess.run([sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stderr

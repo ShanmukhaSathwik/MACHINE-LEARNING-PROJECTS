@@ -6,7 +6,7 @@
   "n_facts": 20,
   "n_pairs": 800,
   "chosen_min_similarity": 0.15,
-  "run_utc": "2026-11-20T23:48:13+00:00",
+  "run_utc": "2026-11-21T00:21:13+00:00",
   "splits": {
     "tune": {
       "n_queries": 20,
@@ -27,7 +27,31 @@
       "word_trap_queries_with_false_recall": 3,
       "word_trap_queries": 5,
       "none_queries_with_recall": 2,
-      "none_queries": 5
+      "none_queries": 5,
+      "queries_with_negative_in_top3": 13,
+      "queries_with_negative_in_top3_share": 0.65,
+      "queries_with_negative_in_top3_by_case_type": {
+        "paraphrase": {
+          "count": 4,
+          "queries": 5,
+          "share": 0.8
+        },
+        "direct": {
+          "count": 4,
+          "queries": 5,
+          "share": 0.8
+        },
+        "word_trap": {
+          "count": 3,
+          "queries": 5,
+          "share": 0.6
+        },
+        "none": {
+          "count": 2,
+          "queries": 5,
+          "share": 0.4
+        }
+      }
     },
     "test": {
       "n_queries": 20,
@@ -48,7 +72,31 @@
       "word_trap_queries_with_false_recall": 5,
       "word_trap_queries": 5,
       "none_queries_with_recall": 3,
-      "none_queries": 5
+      "none_queries": 5,
+      "queries_with_negative_in_top3": 16,
+      "queries_with_negative_in_top3_share": 0.8,
+      "queries_with_negative_in_top3_by_case_type": {
+        "paraphrase": {
+          "count": 4,
+          "queries": 5,
+          "share": 0.8
+        },
+        "direct": {
+          "count": 4,
+          "queries": 5,
+          "share": 0.8
+        },
+        "word_trap": {
+          "count": 5,
+          "queries": 5,
+          "share": 1.0
+        },
+        "none": {
+          "count": 3,
+          "queries": 5,
+          "share": 0.6
+        }
+      }
     }
   }
 }

@@ -10,7 +10,8 @@ Brain only: no torch, no models, nothing imported from gpu/. The LLM is passed i
       A crisis transcript (safety.check_crisis) returns None without calling llm_fn (safety contract: no memory
       from a crisis turn). Any llm_fn error returns None.
 
-Demo:  python scripts/fact_extractor.py --demo          (stub LLM, temporary memory file)
+Demo:  python scripts/fact_extractor.py --demo [--backend json|chroma]   (stub LLM, temporary store; two sessions,
+           session 2 shares no content word with the stored fact; default backend = memory.backend)
        python scripts/fact_extractor.py --live-gemini   (needs GEMINI_API_KEY; never writes the real memory file)
 """
 
@@ -90,9 +91,8 @@ def extract_fact(user_transcript, llm_fn, emotional_spike=False):
     return parse_extraction(raw)
 
 
-# ---------------------------------------------------------------------------------------------
 # Demo
-# ---------------------------------------------------------------------------------------------
+
 
 def _transcript_from_prompt(prompt) -> str:
     return prompt.rsplit(TRANSCRIPT_MARKER, 1)[-1].strip().strip('"').lower()
@@ -108,10 +108,19 @@ def stub_llm(prompt) -> str:
     return "NONE"
 
 
-def demo() -> int:
-    from memory_manager import MemoryManager, importance_from_turn, load_memory_config
+SESSION2_QUERY = "I can't stop worrying about the test this week."   # shares no content word with the exam fact
 
-    cfg = load_memory_config()["memory"]
+
+def demo(backend=None) -> int:
+    """Two sessions on a TEMPORARY store (never the real data/ or vector_store/). backend: "json" or "chroma"
+    (default: memory.backend in gpu_config.yaml). Session 2 opens a new manager on the same store and asks something
+    that shares no content word with the session-1 exam fact (checked with memory_manager.content_words)."""
+    from memory_manager import content_words, importance_from_turn, load_memory_config, make_memory_manager
+
+    mconf = load_memory_config()
+    cfg = dict(mconf["memory"])
+    backend = backend or cfg.get("backend", "json")
+    cfg["backend"] = backend
     user = "demo_user"
     calls = []
 
@@ -120,8 +129,11 @@ def demo() -> int:
         return stub_llm(prompt)
 
     with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "memories.json"
-        print(f"memory file (temporary): {path}\n")
+        conf = {"memory": cfg, "memory_file": Path(tmp) / "memories.json",
+                "vector_store_dir": Path(tmp) / "vector_store", "log_dir": Path(tmp) / "logs"}
+        store_path = conf["vector_store_dir"] if backend == "chroma" else conf["memory_file"]
+        print(f"backend {backend}; memory store (temporary): {store_path}"
+              + (f"; min_similarity {float(cfg['min_similarity']):.2f}" if backend == "chroma" else "") + "\n")
 
         print("=== Session 1 ===")
         session1 = [
@@ -129,40 +141,50 @@ def demo() -> int:
             ("I go hiking most weekends, it clears my head.", {"neutral": 0.7, "happy": 0.25, "angry": 0.0, "sad": 0.05}, False),
             ("I have my exam on Monday and I'm honestly freaking out.", {"neutral": 0.08, "happy": 0.02, "angry": 0.2, "sad": 0.7}, False),
         ]
-        mm = MemoryManager(path, cfg)
-        exam_id = None
-        for turn_id, (text, probs, abstained) in enumerate(session1, 1):
-            importance, spike = importance_from_turn(probs, abstained, cfg)
-            fact = extract_fact(text, llm, emotional_spike=spike)
-            print(f"turn {turn_id}: {text!r}")
-            print(f"   importance {importance:.2f}  spike {spike}  -> fact: {fact or 'NONE'}")
-            if fact:
-                mid = mm.store(user, fact, turn_id, {"probs": probs, "abstained": abstained}, importance)
-                exam_id = mid if "exam" in fact else exam_id
+        exam_id, exam_fact = None, None
+        with make_memory_manager(conf) as mm:
+            for turn_id, (text, probs, abstained) in enumerate(session1, 1):
+                importance, spike = importance_from_turn(probs, abstained, cfg)
+                fact = extract_fact(text, llm, emotional_spike=spike)
+                print(f"turn {turn_id}: {text!r}")
+                print(f"   importance {importance:.2f}  spike {spike}  -> fact: {fact or 'NONE'}")
+                if fact:
+                    mid = mm.store(user, fact, turn_id, {"probs": probs, "abstained": abstained}, importance)
+                    if "exam" in fact:
+                        exam_id, exam_fact = mid, fact
+            print(f"stored in session 1: {[r['fact'] for r in mm.list_user_facts(user)]}")
 
-        print("\n=== Session 2 (new MemoryManager, same file) ===")
-        mm2 = MemoryManager(path, cfg)
-        query = "I'm stressed about Monday"
+        print(f"\n=== Session 2 (new {backend} manager, same store) ===")
+        query = SESSION2_QUERY
+        shared = content_words(query) & content_words(exam_fact)
         print(f"user says: {query!r}")
-        print(f"   fact from this turn: {extract_fact(query, llm) or 'NONE'}")
-        hits = mm2.retrieve_relevant(user, query)
-        print(f"   retrieved {len(hits)} (score = {cfg['w_similarity']} x similarity + {cfg['w_importance']} x importance):")
-        for h in hits:
-            print(f"     similarity {h['similarity']:.3f}  importance {h['importance']:.3f}  "
-                  f"score {h['score']:.3f}  {h['fact']}")
-        print(f"   other user sees: {mm2.retrieve_relevant('someone_else', query)}")
+        print(f"   content words: query {sorted(content_words(query))}  vs  stored exam fact "
+              f"{sorted(content_words(exam_fact))}  -> shared {sorted(shared) or 'none'}  "
+              f"[{'PASS: no shared content word' if not shared else 'FAIL: words shared'}]")
+        if shared:
+            return 1
+        with make_memory_manager(conf) as mm2:
+            print(f"   fact from this turn: {extract_fact(query, llm) or 'NONE'}")
+            hits = mm2.retrieve_relevant(user, query)
+            print(f"   retrieved {len(hits)} (score = {cfg['w_similarity']} x similarity + {cfg['w_importance']} x importance):")
+            for h in hits:
+                print(f"     similarity {h['similarity']:.3f}  importance {h['importance']:.3f}  "
+                      f"score {h['score']:.3f}  {h['fact']}")
+            print(f"   exam fact recalled: {any(h['memory_id'] == exam_id for h in hits)}")
+            print(f"   other user sees: {mm2.retrieve_relevant('someone_else', query)}")
 
-        print("\n=== Forget the exam memory ===")
-        print(f"   delete({exam_id[:8]}...) -> {mm2.delete(user, exam_id)}")
-        hits = MemoryManager(path, cfg).retrieve_relevant(user, query)
-        print(f"   retrieve {query!r} after reload -> {[h['fact'] for h in hits]}")
-        print(f"   remaining facts: {[r['fact'] for r in mm2.list_user_facts(user)]}")
+            print("\n=== Forget the exam memory ===")
+            print(f"   delete({exam_id[:8]}...) -> {mm2.delete(user, exam_id)}")
+        with make_memory_manager(conf) as mm3:
+            hits = mm3.retrieve_relevant(user, query)
+            print(f"   retrieve {query!r} after reopening -> {[h['fact'] for h in hits]}")
+            print(f"   remaining facts: {[r['fact'] for r in mm3.list_user_facts(user)]}")
 
         print("\n=== Crisis turn ===")
         n_before = len(calls)
         crisis = "I don't want to be alive anymore"
         print(f"   {crisis!r} -> fact {extract_fact(crisis, llm)}  (LLM calls made: {len(calls) - n_before})")
-    print(f"\ntemporary file removed: {not path.exists()}")
+    print(f"\ntemporary store removed: {not store_path.exists()}")
     return 0
 
 
@@ -204,9 +226,11 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Extract one durable fact about the user (demo step 5).")
     ap.add_argument("--demo", action="store_true", help="two-session exam scenario with a stub LLM")
     ap.add_argument("--live-gemini", action="store_true", help="6 sentences through Gemini (needs GEMINI_API_KEY)")
+    ap.add_argument("--backend", choices=("json", "chroma"),
+                    help="memory backend for --demo (default: memory.backend in gpu_config.yaml); temporary store")
     args = ap.parse_args(argv)
     if args.demo:
-        return demo()
+        return demo(args.backend)
     if args.live_gemini:
         return live_gemini()
     ap.print_help()

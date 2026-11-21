@@ -130,10 +130,20 @@ def test_non_string_llm_reply_returns_none():
     assert extract_fact("I have an exam on Monday", lambda p: None) is None
 
 
-def test_demo_runs(capsys):
-    assert fact_extractor.demo() == 0
+@pytest.mark.parametrize("backend", ["json", "chroma"])
+def test_demo_runs(capsys, backend):
+    if backend == "chroma":
+        pytest.importorskip("chromadb")
+    assert fact_extractor.demo(backend) == 0
     out = capsys.readouterr().out
-    assert "exam on Monday" in out and "temporary file removed: True" in out
+    assert f"backend {backend}" in out and "exam on Monday" in out and "temporary store removed: True" in out
+    assert "PASS: no shared content word" in out
+
+
+def test_demo_session2_query_shares_no_content_word_with_the_stub_fact():
+    from memory_manager import content_words
+    fact = fact_extractor.stub_llm(build_extraction_prompt("I have my exam on Monday and I'm honestly freaking out."))
+    assert "exam" in fact and not content_words(fact_extractor.SESSION2_QUERY) & content_words(fact)
 
 
 # ---------------------------------------------------------------- imports

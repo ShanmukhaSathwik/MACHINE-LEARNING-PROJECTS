@@ -17,6 +17,9 @@ run_turn(user_id, audio) - one fixed, deterministic order; the LLM never picks a
      5 mood       MoodManagerV2.update: on abstain the mood holds, and after brain.check_in_after abstains in a
                   row outside DEFAULT it raises check_in. -> strategy, check_in, reason, tts_tags (strategy only).
      6 memory     memory.retrieve_relevant(user_id, transcript, memory.top_k): this user's facts only.
+                  Backend from memory.backend (build_memory): chroma (MiniLM, facts below memory.min_similarity are
+                  never recalled) or JSON; if chroma fails to load at startup the agent warns and uses JSON
+                  ("json-fallback"). Every log line records memory_backend and min_similarity (None unless chroma).
      7 prompt     response_generator.build_system_prompt(strategy, facts, check_in). The per-turn emotion label and
                   the probabilities never reach the LLM (P3).
      8 llm        llm.stream_reply(...) sentence by sentence (the "llm" stage times the first sentence); if it
@@ -78,6 +81,7 @@ from memory_manager import (  # noqa: E402
     MemoryManager,
     importance_from_turn,
     load_memory_config,
+    make_memory_manager,
     session_log_filename,
 )
 from mood_manager import MoodManagerV2, tts_tags_for  # noqa: E402
@@ -94,7 +98,7 @@ LOG_FIELDS = (
     "emotion_probs", "confidence", "margin", "abstained", "mood_scores", "turns_above", "mode", "strategy",
     "check_in", "reason", "mood_params", "retrieved_memories", "system_prompt", "llm_backend", "llm_model",
     "llm_fell_back", "llm_error", "reply", "voice_path", "voice_error", "time_to_first_audio", "tts_tags",
-    "stored_memory_id", "fact", "timings", "ser_model",
+    "stored_memory_id", "fact", "timings", "ser_model", "memory_backend", "min_similarity",
 )
 
 
@@ -175,6 +179,32 @@ class TurnLogger:
         return path
 
 
+def build_memory(cfg_memory, memory_file, vector_store_dir, warn=None, embedding_function=None) -> tuple:
+    """(memory, backend label) from memory.backend. "json" -> MemoryManager(memory_file), label "json".
+    "chroma" -> ChromaMemoryManager(vector_store_dir), embedder loaded here once (warm_up), label "chroma".
+    If chroma fails to load (chromadb missing, model cannot load, store cannot open) this warns and returns the
+    JSON MemoryManager with label "json-fallback" - it never raises for that. An unknown backend still raises."""
+    warn = warn or (lambda m: print(m, file=sys.stderr))
+    conf = {"memory": dict(cfg_memory), "memory_file": Path(memory_file),
+            "vector_store_dir": Path(vector_store_dir) if vector_store_dir else None}
+    if conf["memory"].get("backend", "json") != "chroma":
+        return make_memory_manager(conf), "json"
+    memory = None
+    try:
+        memory = make_memory_manager(conf, embedding_function)
+        memory.warm_up()
+        return memory, "chroma"
+    except Exception as e:  # noqa: BLE001 - any chroma failure falls back to JSON
+        if memory is not None:
+            try:
+                memory.close()
+            except Exception:  # noqa: BLE001
+                pass
+        warn(f"WARNING: chroma memory backend failed to load ({type(e).__name__}: {str(e)[:300]}); "
+             f"falling back to the JSON memory file {conf['memory_file']} (logged as memory_backend json-fallback).")
+        return MemoryManager(conf["memory_file"], cfg_memory), "json-fallback"
+
+
 class AgentVoice:
     """Voice port: speak(text or iterable of sentences, strategy, crisis=False) -> {"path", "error", "stats", ...}.
     gpu/tts_gpu is imported on first use: a string goes to speak_with_fallback, a stream to speak_iter_with_fallback.
@@ -198,8 +228,14 @@ class AgentVoice:
 
 class LiveAgent:
     def __init__(self, cfg, *, asr, emotion, llm, voice, memory, logger, safety=safety_module,
-                 mood_factory=None, consent_path=None, extract_fn=fact_extractor.extract_fact, ser_model=None):
+                 mood_factory=None, consent_path=None, extract_fn=fact_extractor.extract_fact, ser_model=None,
+                 memory_backend=None):
         self.cfg = cfg
+        # "chroma", "json" or "json-fallback" (build_memory); min_similarity is logged only when chroma applies it
+        self.memory_backend = memory_backend or getattr(memory, "backend", None)
+        self.min_similarity = (float(memory.cfg["min_similarity"])
+                               if self.memory_backend == "chroma" and "min_similarity" in getattr(memory, "cfg", {})
+                               else None)
         # {name, fallback} of the emotion model actually loaded (ser_gpu.load_ser_with_fallback); in every log line
         self.ser_model = ({"name": ser_model.get("name"), "fallback": bool(ser_model.get("fallback"))}
                           if ser_model else None)
@@ -318,7 +354,7 @@ class LiveAgent:
         rec.update(user_id=user_id, session_id=self.session_id, turn_id=turn_id, status=status,
                    timestamp=datetime.now(timezone.utc).isoformat(timespec="seconds"), transcript=transcript,
                    crisis=False, abstained=False, check_in=False, retrieved_memories=[], tts_tags=[],
-                   ser_model=self.ser_model)
+                   ser_model=self.ser_model, memory_backend=self.memory_backend, min_similarity=self.min_similarity)
         return rec
 
     def _voice_fields(self, rec, voice_rec):
@@ -450,11 +486,13 @@ class LiveAgent:
 # Real components (the only place torch and the models are imported)
 # ---------------------------------------------------------------------------------------------
 
-def load_real_parts(preset=None, play=True):
+def load_real_parts(preset=None, play=True, with_memory=True):
     """(cfg, parts) for LiveAgent(cfg, **parts): ASR, SER, LLM and CSM loaded and warmed up once.
     SER = the ser.checkpoint (T3) if it loads and its label order checks out, else the pretrained ser.model (one
     warning; parts["ser_model"] says which). A label-order mismatch stops here (ser_gpu.LabelOrderError).
-    The CSM voice is loaded only when tts.backend is csm; if it fails to load, the agent uses the fallback voice."""
+    The CSM voice is loaded only when tts.backend is csm; if it fails to load, the agent uses the fallback voice.
+    Memory (with_memory): build_memory on the real store (memory.backend; chroma loads its embedder here, falls back
+    to JSON with a warning). with_memory=False (bench) opens no real store."""
     from device import setup
     import asr_gpu
     import llm_gpu
@@ -476,9 +514,19 @@ def load_real_parts(preset=None, play=True):
                   file=sys.stderr)
     mconf = load_memory_config()
     parts = {"asr": asr, "emotion": emotion, "llm": llm, "voice": AgentVoice(csm, play=play),
-             "memory": MemoryManager(mconf["memory_file"], cfg["memory"]), "logger": TurnLogger(mconf["log_dir"]),
-             "ser_model": ser_info}
+             "logger": TurnLogger(mconf["log_dir"]), "ser_model": ser_info}
+    if with_memory:
+        memory, backend = build_memory(cfg["memory"], mconf["memory_file"], mconf["vector_store_dir"])
+        parts.update(memory=memory, memory_backend=backend)
+        print(memory_startup_line(memory, backend))
     return cfg, parts
+
+
+def memory_startup_line(memory, backend) -> str:
+    where = memory.path
+    if backend == "chroma":
+        return f"memory     : backend chroma ({where}), min_similarity {float(memory.cfg['min_similarity']):.2f}"
+    return f"memory     : backend {backend} ({where}), min_similarity not applied (word overlap)"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -646,7 +694,8 @@ def _print_turn(r):
         print(f"emotion    : {probs}  confidence={r['confidence']:.2f}  margin={r['margin']:.2f}"
               + ("  ABSTAINED" if r["abstained"] else ""))
         print(f"mood       : mode={r['mode']}  strategy={r['strategy']}" + ("  CHECK_IN" if r["check_in"] else ""))
-        print(f"memories   : {len(r['retrieved_memories'])} retrieved")
+        print(f"memories   : {len(r['retrieved_memories'])} retrieved  (backend {r.get('memory_backend')}, "
+              f"min_similarity {r.get('min_similarity')})")
         print(f"llm        : {r['llm_backend']} ({r['llm_model']})" + (f"  error={r['llm_error']}" if r["llm_error"] else ""))
     print(f"reason     : {r['reason']}")
     print(f"reply      : {r['reply']}")

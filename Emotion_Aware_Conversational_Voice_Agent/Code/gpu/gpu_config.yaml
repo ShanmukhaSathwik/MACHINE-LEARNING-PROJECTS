@@ -78,7 +78,7 @@ base:
     base_importance: 0.3   # importance of a fact said calmly (or on a turn where the emotion model abstained)
     spike_threshold: 0.6   # emotional intensity (1 - neutral probability) at or above this counts as a strong emotional moment
     max_fact_words: 25     # an extracted fact longer than this many words is thrown away
-    backend: "json"                   # where facts live: "json" (word overlap) or "chroma" (MiniLM meaning match); stays json until step D4
+    backend: "chroma"                 # where facts live: "chroma" (MiniLM meaning match, step D4) or "json" (word overlap); if chroma fails to load, the agent warns and uses json
     vector_store_dir: "vector_store"  # Chroma's folder, relative to Code/ (git-ignored); only used by the chroma backend
     min_similarity: 0.15   # lowest cutoff with false recalls <= 10% on the tune pairs (scripts/choose_min_similarity.py, 2026-11-20); a fact less similar than this is never recalled (chroma only)
 

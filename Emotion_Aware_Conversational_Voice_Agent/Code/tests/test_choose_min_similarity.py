@@ -9,6 +9,7 @@ import pytest
 from choose_min_similarity import (
     candidate_cutoffs,
     choose_cutoff,
+    queries_with_negative_in_top_k,
     recall_at_k,
     recall_frr,
     split_report,
@@ -82,6 +83,20 @@ def test_recall_at_3_needs_both_cutoff_and_top_3():
     assert np.isnan(recall_at_k(q, f, s, [0] * 9, cutoff=0.4))
 
 
+def test_queries_with_negative_in_top_3():
+    q = ["q1"] * 4 + ["q2"] * 4 + ["q3"] * 4 + ["q4"] * 4
+    f = ["f1", "f2", "f3", "f4"] * 4
+    s = [0.90, 0.50, 0.20, 0.10,      # q1: top 3 f1 f2 f3; f2 is negative and >= 0.30          -> flagged
+         0.80, 0.25, 0.20, 0.60,      # q2: top 3 f1 f4 f2; the negative f2 is below 0.30          -> not flagged
+         0.35, 0.10, 0.10, 0.40,      # q3: no positives; f4 0.40 and f1 0.35 are negatives >= 0.30 -> flagged
+         0.90, 0.80, 0.70, 0.50]      # q4: negative f4 >= 0.30 but 4th, outside the top 3          -> not flagged
+    y = [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0]
+    assert queries_with_negative_in_top_k(q, f, s, y, cutoff=0.30) == {"q1", "q3"}
+    assert queries_with_negative_in_top_k(q, f, s, y, cutoff=0.45) == {"q1"}           # q3's 0.40/0.35 drop out
+    assert queries_with_negative_in_top_k(q, f, s, y, cutoff=0.95) == set()
+    assert queries_with_negative_in_top_k(q, f, s, y, cutoff=0.30, k=4) == {"q1", "q3", "q4"}
+
+
 def test_split_report_case_type_counts():
     pairs = pd.DataFrame({
         "query_id":  ["p1", "p1", "d1", "d1", "w1", "w1", "n1", "n1"],
@@ -97,8 +112,12 @@ def test_split_report_case_type_counts():
     assert (r["word_trap_queries_with_false_recall"], r["word_trap_queries"]) == (1, 1)
     assert (r["none_queries_with_recall"], r["none_queries"]) == (0, 1)
     assert r["recall_at_3"] == 1.0
+    assert r["queries_with_negative_in_top3"] == 1 and r["queries_with_negative_in_top3_share"] == 0.25   # w1
+    assert {ct: v["count"] for ct, v in r["queries_with_negative_in_top3_by_case_type"].items()} == {
+        "paraphrase": 0, "direct": 0, "word_trap": 1, "none": 0}
     r2 = split_report(pairs, 0.25)
     assert r2["none_queries_with_recall"] == 1 and r2["frr"] == pytest.approx(2 / 6)
+    assert r2["queries_with_negative_in_top3"] == 2                                     # w1 and n1 (0.30)
     r3 = split_report(pairs, 0.70)
     assert (r3["paraphrase_recall"], r3["direct_recall"], r3["word_trap_queries_with_false_recall"]) == (0.0, 1.0, 0)
 

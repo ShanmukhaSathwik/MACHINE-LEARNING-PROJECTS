@@ -17,8 +17,9 @@ Fallbacks: flagged per turn and in the summary: T3 -> pretrained (ser_model.fall
            llm.backend (Qwen -> Gemini / template) or a model switch inside it, voice other than csm when
            tts.backend is csm (CSM -> pyttsx3 / text).
 
-Isolation: bench users, memories, consent and session logs live in gpu/outputs/bench/<run>/ ($GPU_OUTPUTS_DIR when
-set); the real data/memories.json, data/consent.json and results/logs are never touched. Audio is not played
+Isolation: bench users, memories (vector_store/ or memories.json, by memory.backend), consent and session logs live
+in gpu/outputs/bench/<run>/ ($GPU_OUTPUTS_DIR when set); the real data/memories.json, vector_store/,
+data/consent.json and results/logs are never touched. Audio is not played
 unless --play (pyttsx3 always speaks if it is used).
 
 This module imports no torch at import time (models load inside main via live_agent_gpu.load_real_parts).
@@ -49,7 +50,6 @@ for p in (str(HERE), str(SCRIPTS_DIR)):
 
 import live_agent_gpu as la  # noqa: E402  (torch-free at import)
 import safety  # noqa: E402
-from memory_manager import MemoryManager  # noqa: E402
 
 PRE_TTS_ORDER = ("consent", "asr", "safety", "emotion", "abstain", "mood", "memory", "prompt", "llm")
 NUMERIC = ("asr_s", "emotion_s", "abstain_s", "mood_s", "memory_s", "llm_first_sentence_s", "voice_first_audio_s",
@@ -205,12 +205,16 @@ class BenchAgent:
         return r
 
 
-def build_bench_agent(cfg, parts, bench_dir):
-    """LiveAgent on the given parts, with memory / consent / logs in bench_dir (never the real files)."""
+def build_bench_agent(cfg, parts, bench_dir, embedding_function=None):
+    """LiveAgent on the given parts, with memory / consent / logs in bench_dir (never the real files).
+    Memory comes from the same factory as the live agent (live_agent_gpu.build_memory, memory.backend):
+    bench_dir/vector_store for chroma, bench_dir/memories.json for json (and for the json fallback)."""
     bench_dir = Path(bench_dir)
     bench_dir.mkdir(parents=True, exist_ok=True)
     asr = TextOverrideASR(parts["asr"])
-    p = {**parts, "asr": asr, "memory": MemoryManager(bench_dir / "memories.json", cfg["memory"]),
+    memory, backend = la.build_memory(cfg["memory"], bench_dir / "memories.json", bench_dir / "vector_store",
+                                      embedding_function=embedding_function)
+    p = {**parts, "asr": asr, "memory": memory, "memory_backend": backend,
          "logger": la.TurnLogger(bench_dir / "logs")}
     consent = bench_dir / "consent.json"
     return BenchAgent(la.LiveAgent(cfg, consent_path=consent, **p), asr), consent
@@ -347,7 +351,7 @@ def main(argv=None) -> int:
         parts = {**base, "ser_model": ser_info}
     else:
         try:
-            cfg, parts = la.load_real_parts(args.preset, play=args.play)
+            cfg, parts = la.load_real_parts(args.preset, play=args.play, with_memory=False)   # no real store
         except (ValueError, RuntimeError, OSError) as e:
             print(f"ERROR: {e}", file=sys.stderr)
             return 1
@@ -360,6 +364,7 @@ def main(argv=None) -> int:
 
     parts = {k: v for k, v in parts.items() if k in ("asr", "emotion", "llm", "voice", "ser_model")}
     bench, consent = build_bench_agent(cfg, parts, bench_dir)
+    print(la.memory_startup_line(bench.agent.memory, bench.agent.memory_backend))
     rows = run_bench(bench, turns, texts, repeats, consent, ser_info, expect, print_fn=say)
     gpu_run = peak_gpu_gb() if not args.stub else "n/a"
     summary = summarize(rows)

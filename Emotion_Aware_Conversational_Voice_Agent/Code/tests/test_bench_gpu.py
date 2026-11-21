@@ -150,7 +150,8 @@ def test_my_voice_clips_are_refused(tmp_path):
 
 # ---------------------------------------------------------------- end to end on stub parts
 
-def test_run_bench_end_to_end_on_stubs(tmp_path):
+@pytest.mark.parametrize("backend", ["chroma", "json"])
+def test_run_bench_end_to_end_on_stubs(tmp_path, backend):
     for n in ("a.wav", "b.wav"):
         sf.write(str(tmp_path / n), np.zeros(1600, np.float32), 16000)
     (tmp_path / "bench.yaml").write_text(
@@ -159,9 +160,23 @@ def test_run_bench_end_to_end_on_stubs(tmp_path):
         encoding="utf-8")
     turns, texts = bg.load_bench_turns(tmp_path / "bench.yaml")
     cfg = load_config("smoke_cpu")
+    cfg["memory"] = {**cfg["memory"], "backend": backend}
+    embed = None
+    if backend == "chroma":
+        pytest.importorskip("chromadb")
+        from test_memory_chroma import FakeEmbedder                       # no model needed
+        embed = FakeEmbedder()
     parts, ser_info, expect = bg.stub_parts()
-    bench, consent = bg.build_bench_agent(cfg, {**parts, "ser_model": ser_info}, tmp_path / "bench")
-    rows = bg.run_bench(bench, turns, texts, 2, consent, ser_info, expect, print_fn=lambda *a: None)
+    bench, consent = bg.build_bench_agent(cfg, {**parts, "ser_model": ser_info}, tmp_path / "bench",
+                                          embedding_function=embed)
+    assert bench.agent.memory_backend == backend
+    # the store is inside the bench folder, never the real data/ or vector_store/
+    assert Path(bench.agent.memory.path).parent == tmp_path / "bench"
+    assert (tmp_path / "bench" / "vector_store").is_dir() == (backend == "chroma")
+    try:
+        rows = bg.run_bench(bench, turns, texts, 2, consent, ser_info, expect, print_fn=lambda *a: None)
+    finally:
+        bench.agent.memory.close()                                         # Windows: release vector_store/
     assert [r["row_type"] for r in rows] == ["warmup"] + ["run"] * 8
     assert [r["status"] for r in rows if r["pass"] == 1] == ["ok", "crisis", "delete_confirm", "delete_cancelled"]
     ok = next(r for r in rows if r["pass"] == 1 and r["turn"] == 1)

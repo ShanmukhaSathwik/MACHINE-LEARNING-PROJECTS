@@ -116,6 +116,18 @@ If you skip it, just don't run the `Read-Host` line.
 Repeat 1.7 in every new PowerShell window.
 Do **not** copy your `.env` to this machine: a typed-in session variable leaves nothing behind.
 
+**Chroma memory model (step D4).** The agent's memory backend is `chroma`. Its first run downloads the MiniLM ONNX
+model (`onnx.tar.gz`, ~79 MB) into Chroma's own cache folder, **not** `HF_HOME`:
+`%USERPROFILE%\.cache\chroma\onnx_models\all-MiniLM-L6-v2` (at home this is
+`C:\Users\sathw\.cache\chroma\onnx_models\all-MiniLM-L6-v2`, as printed by `python scripts\check_embedder.py`).
+If the GPU machine has no internet, copy that whole folder by USB to the same place under the machine's user profile:
+```powershell
+robocopy E:\all-MiniLM-L6-v2 "$env:USERPROFILE\.cache\chroma\onnx_models\all-MiniLM-L6-v2" /E
+python scripts\check_embedder.py      # expect PASS and "model already cached before run: True"
+```
+If the model cannot load, the agent prints a WARNING and uses the JSON memory instead (logged as `json-fallback`).
+The folder stays in the machine's user profile; delete it at cleanup (section 4) to leave nothing behind.
+
 ### 1.8 Verify
 Console output is saved to a text file with `Tee-Object` (it still shows on screen), so you can bring it home:
 ```powershell
