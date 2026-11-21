@@ -38,7 +38,7 @@ def test_config_block_matches_spec():
     assert {k: conf["memory"][k] for k in CFG} == CFG
     # Task D step D2 keys (chroma backend only; json stays the default until step D4)
     assert {k: v for k, v in conf["memory"].items() if k not in CFG} == {
-        "backend": "json", "vector_store_dir": "vector_store", "min_similarity": 0.0}
+        "backend": "json", "vector_store_dir": "vector_store", "min_similarity": 0.15}   # D3b: choose_min_similarity.py
     assert conf["memory_file"] == CODE_DIR / "data" / "memories.json"
     assert conf["log_dir"] == CODE_DIR / "results" / "logs"
     assert conf["vector_store_dir"] == CODE_DIR / "vector_store"

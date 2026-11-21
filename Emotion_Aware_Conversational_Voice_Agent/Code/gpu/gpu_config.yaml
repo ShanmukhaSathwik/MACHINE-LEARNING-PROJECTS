@@ -80,7 +80,7 @@ base:
     max_fact_words: 25     # an extracted fact longer than this many words is thrown away
     backend: "json"                   # where facts live: "json" (word overlap) or "chroma" (MiniLM meaning match); stays json until step D4
     vector_store_dir: "vector_store"  # Chroma's folder, relative to Code/ (git-ignored); only used by the chroma backend
-    min_similarity: 0.0    # placeholder, chosen in step D3 from labelled pairs: a fact less similar than this is never recalled (chroma only)
+    min_similarity: 0.15   # lowest cutoff with false recalls <= 10% on the tune pairs (scripts/choose_min_similarity.py, 2026-11-20); a fact less similar than this is never recalled (chroma only)
 
   # Fine-tuning the speech emotion model on RAVDESS + CREMA-D (gpu/finetune_ser.py).
   finetune:
