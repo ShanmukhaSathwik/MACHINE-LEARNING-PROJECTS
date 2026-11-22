@@ -189,6 +189,11 @@ Sources: `session2_notes.txt`, `session2_terminal.txt`, `results/metrics/llm_dem
   - [ ] Decide the demo voice host
 
 ### F. Evaluation & demo
+- **R1/R2 — RQ2 memory test, done (2026-11-22):** weighted retrieval (0.7 similarity + 0.3 importance) vs similarity-only (1.0 / 0.0) on `data/rq2_eval/` (15 users x 5 facts, 45 queries; labels and rule approved and committed first in 1e7b92d). Real MiniLM, Chroma 1.5.9, `min_similarity` 0.15, fresh store per user, importance from scripted intensity (calm 0.30 / mild 0.65 / strong 0.93). `scripts/run_rq2_eval.py`, `tests/test_run_rq2_eval.py`; outputs `results/metrics/rq2_per_query.csv`, `rq2_summary.csv`, `rq2_summary.json`, `results/figures/rq2_mrr_by_case.png`
+  - **Verdict: weighting HURTS.** MRR weighted 0.8759 vs similarity-only 0.9778; difference −0.1019, 95% paired-bootstrap CI [−0.1741, −0.0370] (10,000 resamples, seed 42). hit@1 0.7778 vs 0.9556; hit@3 0.9778 vs 1.0000; no relevant fact cut by the threshold in either condition
+  - Per case type (information only): charged_target +0.0333 [+0.0000, +0.1000]; calm_target_charged_distractor −0.2722 [−0.4111, −0.1333]; calm_target −0.0667 [−0.1667, +0.0000]
+  - **Guardrail flagged**: calm-target hit@1 0.9667 → 0.6667 (drop 0.3000 > 0.10). 10/45 queries get a different top-1 fact; in 9 of them the weighted top-1 is a strong or mild fact over the right calm one, in 1 (u03_q1) weighting fixes a charged target
+  - Limitation: intensity is scripted, not from the emotion model. `w_importance` is still 0.3 in gpu_config.yaml; changing it is a separate decision
 - End-to-end evaluation: emotion accuracy, response quality, mood stability
 - Prepare demo script and recording
 - Pin one LLM model for every evaluation run (Task A fallback-chain confound)

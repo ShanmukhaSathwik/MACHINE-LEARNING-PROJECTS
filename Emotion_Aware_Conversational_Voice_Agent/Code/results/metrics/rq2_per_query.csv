@@ -1,0 +1,91 @@
+user_id,query_id,case_type,condition,query,relevant_fact_id,relevant_intensity,relevant_similarity,relevant_importance,distractor_fact_id,rank,reciprocal_rank,hit_at_1,hit_at_3,n_returned,top1_fact_id,distractor_rank,distractor_in_top3,top1_intensity
+u01,u01_q1,charged_target,weighted,"They told us Grandpa only has weeks left, I can't handle it.",u01_f1,strong,0.5646407541896914,0.9299999999999999,,1,1.0,1,1,2,u01_f1,,,strong
+u01,u01_q1,charged_target,similarity_only,"They told us Grandpa only has weeks left, I can't handle it.",u01_f1,strong,0.5646407541896914,0.9299999999999999,,1,1.0,1,1,2,u01_f1,,,strong
+u01,u01_q2,calm_target_charged_distractor,weighted,I picked up a couple of reading-list books from the uni stacks for free.,u01_f2,calm,0.4830876877285882,0.3,u01_f3,1,1.0,1,1,1,u01_f2,,0,calm
+u01,u01_q2,calm_target_charged_distractor,similarity_only,I picked up a couple of reading-list books from the uni stacks for free.,u01_f2,calm,0.4830876877285882,0.3,u01_f3,1,1.0,1,1,1,u01_f2,,0,calm
+u01,u01_q3,calm_target,weighted,Found a rare jazz LP at the thrift store this weekend.,u01_f4,calm,0.46454260963567845,0.3,,1,1.0,1,1,1,u01_f4,,,calm
+u01,u01_q3,calm_target,similarity_only,Found a rare jazz LP at the thrift store this weekend.,u01_f4,calm,0.46454260963567845,0.3,,1,1.0,1,1,1,u01_f4,,,calm
+u02,u02_q1,charged_target,weighted,My boss presented my work as if it were theirs at the meeting and I'm livid.,u02_f1,strong,0.26581660088983833,0.9299999999999999,,1,1.0,1,1,3,u02_f1,,,strong
+u02,u02_q1,charged_target,similarity_only,My boss presented my work as if it were theirs at the meeting and I'm livid.,u02_f1,strong,0.26581660088983833,0.9299999999999999,,1,1.0,1,1,3,u02_f1,,,strong
+u02,u02_q2,calm_target_charged_distractor,weighted,Just gave the little fish their breakfast flakes.,u02_f2,calm,0.4667598993743381,0.3,u02_f3,1,1.0,1,1,1,u02_f2,,0,calm
+u02,u02_q2,calm_target_charged_distractor,similarity_only,Just gave the little fish their breakfast flakes.,u02_f2,calm,0.4667598993743381,0.3,u02_f3,1,1.0,1,1,1,u02_f2,,0,calm
+u02,u02_q3,calm_target,weighted,"Stuck on seven across, the clue is driving me nuts.",u02_f4,calm,0.2963817391950687,0.3,,1,1.0,1,1,1,u02_f4,,,calm
+u02,u02_q3,calm_target,similarity_only,"Stuck on seven across, the clue is driving me nuts.",u02_f4,calm,0.2963817391950687,0.3,,1,1.0,1,1,1,u02_f4,,,calm
+u03,u03_q1,charged_target,weighted,Honestly I'm scared I won't make it to payday this month.,u03_f1,strong,0.2751066340501391,0.9299999999999999,,1,1.0,1,1,3,u03_f1,,,strong
+u03,u03_q1,charged_target,similarity_only,Honestly I'm scared I won't make it to payday this month.,u03_f1,strong,0.2751066340501391,0.9299999999999999,,2,0.5,0,1,3,u03_f2,,,calm
+u03,u03_q2,calm_target_charged_distractor,weighted,Heading over to Mum and Dad's for our usual meal together tonight.,u03_f2,calm,0.41927571465527763,0.3,u03_f3,2,0.5,0,1,2,u03_f3,1,1,strong
+u03,u03_q2,calm_target_charged_distractor,similarity_only,Heading over to Mum and Dad's for our usual meal together tonight.,u03_f2,calm,0.41927571465527763,0.3,u03_f3,1,1.0,1,1,2,u03_f2,2,1,calm
+u03,u03_q3,calm_target,weighted,I filled half a notebook with my pen during the lecture today.,u03_f4,calm,0.41922067048735817,0.3,,1,1.0,1,1,2,u03_f4,,,calm
+u03,u03_q3,calm_target,similarity_only,I filled half a notebook with my pen during the lecture today.,u03_f4,calm,0.41922067048735817,0.3,,1,1.0,1,1,2,u03_f4,,,calm
+u04,u04_q1,charged_target,weighted,"The vet says my kitty has to go under the knife, she hasn't touched her bowl in days.",u04_f1,strong,0.4143660929543828,0.9299999999999999,,1,1.0,1,1,1,u04_f1,,,strong
+u04,u04_q1,charged_target,similarity_only,"The vet says my kitty has to go under the knife, she hasn't touched her bowl in days.",u04_f1,strong,0.4143660929543828,0.9299999999999999,,1,1.0,1,1,1,u04_f1,,,strong
+u04,u04_q2,calm_target_charged_distractor,weighted,Did my usual bit of scales on the keyboard after dinner.,u04_f2,calm,0.3064923947571469,0.3,u04_f3,3,0.3333333333333333,0,1,3,u04_f3,1,1,strong
+u04,u04_q2,calm_target_charged_distractor,similarity_only,Did my usual bit of scales on the keyboard after dinner.,u04_f2,calm,0.3064923947571469,0.3,u04_f3,1,1.0,1,1,3,u04_f2,2,1,calm
+u04,u04_q3,calm_target,weighted,Thinking a soft pale yellow might brighten up where I sleep.,u04_f4,calm,0.36695191102521574,0.3,,1,1.0,1,1,1,u04_f4,,,calm
+u04,u04_q3,calm_target,similarity_only,Thinking a soft pale yellow might brighten up where I sleep.,u04_f4,calm,0.36695191102521574,0.3,,1,1.0,1,1,1,u04_f4,,,calm
+u05,u05_q1,charged_target,weighted,If my residence permit doesn't come through I'll have to leave the country.,u05_f1,strong,0.403142222828073,0.9299999999999999,,1,1.0,1,1,1,u05_f1,,,strong
+u05,u05_q1,charged_target,similarity_only,If my residence permit doesn't come through I'll have to leave the country.,u05_f1,strong,0.403142222828073,0.9299999999999999,,1,1.0,1,1,1,u05_f1,,,strong
+u05,u05_q2,calm_target_charged_distractor,weighted,"Rode my bike in to the job this morning, nice weather for it.",u05_f2,calm,0.2334711514624712,0.3,u05_f3,1,1.0,1,1,1,u05_f2,,0,calm
+u05,u05_q2,calm_target_charged_distractor,similarity_only,"Rode my bike in to the job this morning, nice weather for it.",u05_f2,calm,0.2334711514624712,0.3,u05_f3,1,1.0,1,1,1,u05_f2,,0,calm
+u05,u05_q3,calm_target,weighted,I'm on book six of that dragon saga now.,u05_f4,calm,0.3896276693131507,0.3,,1,1.0,1,1,1,u05_f4,,,calm
+u05,u05_q3,calm_target,similarity_only,I'm on book six of that dragon saga now.,u05_f4,calm,0.3896276693131507,0.3,,1,1.0,1,1,1,u05_f4,,,calm
+u06,u06_q1,charged_target,weighted,I told her one private thing and now the entire class knows.,u06_f1,strong,0.3909074848020981,0.9299999999999999,,1,1.0,1,1,2,u06_f1,,,strong
+u06,u06_q1,charged_target,similarity_only,I told her one private thing and now the entire class knows.,u06_f1,strong,0.3909074848020981,0.9299999999999999,,1,1.0,1,1,2,u06_f1,,,strong
+u06,u06_q2,calm_target_charged_distractor,weighted,Might just take the train to that little village down the coast on Saturday and relax.,u06_f2,calm,0.4067125444960323,0.3,u06_f3,2,0.5,0,1,2,u06_f3,1,1,strong
+u06,u06_q2,calm_target_charged_distractor,similarity_only,Might just take the train to that little village down the coast on Saturday and relax.,u06_f2,calm,0.4067125444960323,0.3,u06_f3,1,1.0,1,1,2,u06_f2,2,1,calm
+u06,u06_q3,calm_target,weighted,Took next door's pup around the block while they're travelling.,u06_f4,calm,0.45464844978726376,0.3,,1,1.0,1,1,2,u06_f4,,,calm
+u06,u06_q3,calm_target,similarity_only,Took next door's pup around the block while they're travelling.,u06_f4,calm,0.45464844978726376,0.3,,1,1.0,1,1,2,u06_f4,,,calm
+u07,u07_q1,charged_target,weighted,The house feels so empty without my good boy since we said goodbye.,u07_f1,strong,0.3139832450111117,0.9299999999999999,,1,1.0,1,1,1,u07_f1,,,strong
+u07,u07_q1,charged_target,similarity_only,The house feels so empty without my good boy since we said goodbye.,u07_f1,strong,0.3139832450111117,0.9299999999999999,,1,1.0,1,1,1,u07_f1,,,strong
+u07,u07_q2,calm_target_charged_distractor,weighted,Moved a little of my wages into the rainy-day pot again.,u07_f2,calm,0.2113759480794321,0.3,u07_f3,4,0.25,0,0,4,u07_f3,1,1,strong
+u07,u07_q2,calm_target_charged_distractor,similarity_only,Moved a little of my wages into the rainy-day pot again.,u07_f2,calm,0.2113759480794321,0.3,u07_f3,1,1.0,1,1,4,u07_f2,2,1,calm
+u07,u07_q3,calm_target,weighted,My basil and cherry plants outside the flat are doing great.,u07_f4,calm,0.37695825887992196,0.3,,1,1.0,1,1,1,u07_f4,,,calm
+u07,u07_q3,calm_target,similarity_only,My basil and cherry plants outside the flat are doing great.,u07_f4,calm,0.37695825887992196,0.3,,1,1.0,1,1,1,u07_f4,,,calm
+u08,u08_q1,charged_target,weighted,My professor thinks I copied my essay from the internet and I feel humiliated.,u08_f1,strong,0.5080244092809707,0.9299999999999999,,1,1.0,1,1,3,u08_f1,,,strong
+u08,u08_q1,charged_target,similarity_only,My professor thinks I copied my essay from the internet and I feel humiliated.,u08_f1,strong,0.5080244092809707,0.9299999999999999,,1,1.0,1,1,3,u08_f1,,,strong
+u08,u08_q2,calm_target_charged_distractor,weighted,Caught up with a mate from secondary over a latte today.,u08_f2,calm,0.3632400227336047,0.3,u08_f3,1,1.0,1,1,1,u08_f2,,0,calm
+u08,u08_q2,calm_target_charged_distractor,similarity_only,Caught up with a mate from secondary over a latte today.,u08_f2,calm,0.3632400227336047,0.3,u08_f3,1,1.0,1,1,1,u08_f2,,0,calm
+u08,u08_q3,calm_target,weighted,I signed up to help out with the rescue cats and dogs on Sundays.,u08_f4,calm,0.4738873207489798,0.3,,1,1.0,1,1,1,u08_f4,,,calm
+u08,u08_q3,calm_target,similarity_only,I signed up to help out with the rescue cats and dogs on Sundays.,u08_f4,calm,0.4738873207489798,0.3,,1,1.0,1,1,1,u08_f4,,,calm
+u09,u09_q1,charged_target,weighted,Rumour is they're firing another batch of people at my company and I'm sure it's me.,u09_f1,strong,0.31330337223295684,0.9299999999999999,,1,1.0,1,1,2,u09_f1,,,strong
+u09,u09_q1,charged_target,similarity_only,Rumour is they're firing another batch of people at my company and I'm sure it's me.,u09_f1,strong,0.31330337223295684,0.9299999999999999,,1,1.0,1,1,2,u09_f1,,,strong
+u09,u09_q2,calm_target_charged_distractor,weighted,The loaf I made this morning came out with a lovely crust.,u09_f2,calm,0.5755674544116602,0.3,u09_f3,1,1.0,1,1,2,u09_f2,2,1,calm
+u09,u09_q2,calm_target_charged_distractor,similarity_only,The loaf I made this morning came out with a lovely crust.,u09_f2,calm,0.5755674544116602,0.3,u09_f3,1,1.0,1,1,2,u09_f2,2,1,calm
+u09,u09_q3,calm_target,weighted,My sibling's flying in from overseas to stay with me for a bit.,u09_f4,calm,0.5151177498597,0.3,,1,1.0,1,1,1,u09_f4,,,calm
+u09,u09_q3,calm_target,similarity_only,My sibling's flying in from overseas to stay with me for a bit.,u09_f4,calm,0.5151177498597,0.3,,1,1.0,1,1,1,u09_f4,,,calm
+u10,u10_q1,charged_target,weighted,Mum goes in for her bypass operation next week and I can't sleep.,u10_f1,strong,0.47815717900381394,0.9299999999999999,,1,1.0,1,1,2,u10_f1,,,strong
+u10,u10_q1,charged_target,similarity_only,Mum goes in for her bypass operation next week and I can't sleep.,u10_f1,strong,0.47815717900381394,0.9299999999999999,,1,1.0,1,1,2,u10_f1,,,strong
+u10,u10_q2,calm_target_charged_distractor,weighted,"The bunny's yearly vet visit went fine, totally healthy.",u10_f2,calm,0.5257280029815361,0.3,u10_f3,2,0.5,0,1,4,u10_f3,1,1,strong
+u10,u10_q2,calm_target_charged_distractor,similarity_only,"The bunny's yearly vet visit went fine, totally healthy.",u10_f2,calm,0.5257280029815361,0.3,u10_f3,1,1.0,1,1,4,u10_f2,2,1,calm
+u10,u10_q3,calm_target,weighted,"No office for me tomorrow, I'll be at my kitchen table all day.",u10_f4,calm,0.2569969521320684,0.3,,1,1.0,1,1,1,u10_f4,,,calm
+u10,u10_q3,calm_target,similarity_only,"No office for me tomorrow, I'll be at my kitchen table all day.",u10_f4,calm,0.2569969521320684,0.3,,1,1.0,1,1,1,u10_f4,,,calm
+u11,u11_q1,charged_target,weighted,"Had to ask Mum and Dad to bail me out financially, again, so embarrassing.",u11_f1,strong,0.5086813458483427,0.9299999999999999,,1,1.0,1,1,1,u11_f1,,,strong
+u11,u11_q1,charged_target,similarity_only,"Had to ask Mum and Dad to bail me out financially, again, so embarrassing.",u11_f1,strong,0.5086813458483427,0.9299999999999999,,1,1.0,1,1,1,u11_f1,,,strong
+u11,u11_q2,calm_target_charged_distractor,weighted,Finished the lesson on loops and variables in my programming class tonight.,u11_f2,calm,0.46058331006850584,0.3,u11_f3,1,1.0,1,1,1,u11_f2,,0,calm
+u11,u11_q2,calm_target_charged_distractor,similarity_only,Finished the lesson on loops and variables in my programming class tonight.,u11_f2,calm,0.46058331006850584,0.3,u11_f3,1,1.0,1,1,1,u11_f2,,0,calm
+u11,u11_q3,calm_target,weighted,Lost three games of blitz in a row before bed.,u11_f4,calm,0.20021185578387365,0.3,,1,1.0,1,1,1,u11_f4,,,calm
+u11,u11_q3,calm_target,similarity_only,Lost three games of blitz in a row before bed.,u11_f4,calm,0.20021185578387365,0.3,,1,1.0,1,1,1,u11_f4,,,calm
+u12,u12_q1,charged_target,weighted,"I accepted the position overseas, it's exciting but my head is spinning.",u12_f1,strong,0.5424570082497185,0.9299999999999999,,1,1.0,1,1,2,u12_f1,,,strong
+u12,u12_q1,charged_target,similarity_only,"I accepted the position overseas, it's exciting but my head is spinning.",u12_f1,strong,0.5424570082497185,0.9299999999999999,,1,1.0,1,1,2,u12_f1,,,strong
+u12,u12_q2,calm_target_charged_distractor,weighted,Picked up groceries for Nan again this Saturday.,u12_f2,calm,0.3518555963493704,0.3,u12_f3,1,1.0,1,1,1,u12_f2,,0,calm
+u12,u12_q2,calm_target_charged_distractor,similarity_only,Picked up groceries for Nan again this Saturday.,u12_f2,calm,0.3518555963493704,0.3,u12_f3,1,1.0,1,1,1,u12_f2,,0,calm
+u12,u12_q3,calm_target,weighted,My feathered buddy was copying the kettle's noise all morning.,u12_f4,calm,0.3132748524610428,0.3,,2,0.5,0,1,2,u12_f5,,,mild
+u12,u12_q3,calm_target,similarity_only,My feathered buddy was copying the kettle's noise all morning.,u12_f4,calm,0.3132748524610428,0.3,,1,1.0,1,1,2,u12_f4,,,calm
+u13,u13_q1,charged_target,weighted,They all went away to the coast together and nobody even invited me.,u13_f1,strong,0.38448378003540234,0.9299999999999999,,1,1.0,1,1,1,u13_f1,,,strong
+u13,u13_q1,charged_target,similarity_only,They all went away to the coast together and nobody even invited me.,u13_f1,strong,0.38448378003540234,0.9299999999999999,,1,1.0,1,1,1,u13_f1,,,strong
+u13,u13_q2,calm_target_charged_distractor,weighted,My alarm goes off at five so I can be on the ward by six.,u13_f2,calm,0.3094976686498319,0.3,u13_f3,2,0.5,0,1,2,u13_f3,1,1,strong
+u13,u13_q2,calm_target_charged_distractor,similarity_only,My alarm goes off at five so I can be on the ward by six.,u13_f2,calm,0.3094976686498319,0.3,u13_f3,1,1.0,1,1,2,u13_f2,2,1,calm
+u13,u13_q3,calm_target,weighted,"I always carry notes and coins, I don't trust contactless.",u13_f4,calm,0.3990078042463242,0.3,,2,0.5,0,1,2,u13_f1,,,strong
+u13,u13_q3,calm_target,similarity_only,"I always carry notes and coins, I don't trust contactless.",u13_f4,calm,0.3990078042463242,0.3,,1,1.0,1,1,2,u13_f4,,,calm
+u14,u14_q1,charged_target,weighted,"They're screening my movie at the campus showcase, I'm over the moon!",u14_f1,strong,0.5001529513777743,0.9299999999999999,,1,1.0,1,1,2,u14_f1,,,strong
+u14,u14_q1,charged_target,similarity_only,"They're screening my movie at the campus showcase, I'm over the moon!",u14_f1,strong,0.5001529513777743,0.9299999999999999,,1,1.0,1,1,2,u14_f1,,,strong
+u14,u14_q2,calm_target_charged_distractor,weighted,Bringing a new dice-and-cards box to play with the crew tomorrow evening.,u14_f2,calm,0.2907428218154491,0.3,u14_f3,3,0.3333333333333333,0,1,3,u14_f5,,0,mild
+u14,u14_q2,calm_target_charged_distractor,similarity_only,Bringing a new dice-and-cards box to play with the crew tomorrow evening.,u14_f2,calm,0.2907428218154491,0.3,u14_f3,2,0.5,0,1,3,u14_f5,,0,mild
+u14,u14_q3,calm_target,weighted,"Learned tonight how far away the nearest star is, wild stuff.",u14_f4,calm,0.249523200514073,0.3,,1,1.0,1,1,1,u14_f4,,,calm
+u14,u14_q3,calm_target,similarity_only,"Learned tonight how far away the nearest star is, wild stuff.",u14_f4,calm,0.249523200514073,0.3,,1,1.0,1,1,1,u14_f4,,,calm
+u15,u15_q1,charged_target,weighted,"My little pup got struck crossing the road, she's in intensive care at the animal hospital.",u15_f1,strong,0.5711808449078696,0.9299999999999999,,1,1.0,1,1,1,u15_f1,,,strong
+u15,u15_q1,charged_target,similarity_only,"My little pup got struck crossing the road, she's in intensive care at the animal hospital.",u15_f1,strong,0.5711808449078696,0.9299999999999999,,1,1.0,1,1,1,u15_f1,,,strong
+u15,u15_q2,calm_target_charged_distractor,weighted,Just reserved a pitch for the tent near the lake in August.,u15_f2,calm,0.3951297290435311,0.3,u15_f3,2,0.5,0,1,2,u15_f3,1,1,strong
+u15,u15_q2,calm_target_charged_distractor,similarity_only,Just reserved a pitch for the tent near the lake in August.,u15_f2,calm,0.3951297290435311,0.3,u15_f3,1,1.0,1,1,2,u15_f2,2,1,calm
+u15,u15_q3,calm_target,weighted,I've been sorting old prints of Grandma and the kids into a scrapbook.,u15_f4,calm,0.3635244770766434,0.3,,1,1.0,1,1,1,u15_f4,,,calm
+u15,u15_q3,calm_target,similarity_only,I've been sorting old prints of Grandma and the kids into a scrapbook.,u15_f4,calm,0.3635244770766434,0.3,,1,1.0,1,1,1,u15_f4,,,calm

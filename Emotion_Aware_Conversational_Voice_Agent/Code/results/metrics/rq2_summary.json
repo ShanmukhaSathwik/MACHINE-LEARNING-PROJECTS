@@ -1,0 +1,302 @@
+{
+  "rule": "data/rq2_eval/README.md, 'Decision rule (fixed before running)'",
+  "run_utc": "2026-11-22T15:47:03+00:00",
+  "chromadb_version": "1.5.9",
+  "embedder": "chromadb DefaultEmbeddingFunction (all-MiniLM-L6-v2, ONNX), ChromaMemoryManager default",
+  "config_used": {
+    "conditions": {
+      "weighted": {
+        "w_similarity": 0.7,
+        "w_importance": 0.3
+      },
+      "similarity_only": {
+        "w_similarity": 1.0,
+        "w_importance": 0.0
+      }
+    },
+    "min_similarity": 0.15,
+    "base_importance": 0.3,
+    "agent_top_k": 3,
+    "ranking_top_k": 5,
+    "intensity_probs": {
+      "calm": {
+        "neutral": 1.0,
+        "happy": 0.0,
+        "angry": 0.0,
+        "sad": 0.0
+      },
+      "mild": {
+        "neutral": 0.5,
+        "happy": 0.16666666666666666,
+        "angry": 0.16666666666666666,
+        "sad": 0.16666666666666666
+      },
+      "strong": {
+        "neutral": 0.1,
+        "happy": 0.3,
+        "angry": 0.3,
+        "sad": 0.3
+      }
+    },
+    "importance_by_intensity": {
+      "calm": 0.3,
+      "mild": 0.6499999999999999,
+      "strong": 0.9299999999999999
+    },
+    "n_resamples": 10000,
+    "seed": 42,
+    "guardrail_max_drop": 0.1
+  },
+  "n_users": 15,
+  "n_facts": 75,
+  "n_queries": 45,
+  "summary": [
+    {
+      "condition": "weighted",
+      "case_type": "all",
+      "n": 45,
+      "mrr": 0.8759259259259259,
+      "hit_at_1": 0.7777777777777778,
+      "hit_at_3": 0.9777777777777777,
+      "n_relevant_cut": 0,
+      "n_with_distractor": 15,
+      "distractor_in_top3_rate": 0.5333333333333333
+    },
+    {
+      "condition": "weighted",
+      "case_type": "charged_target",
+      "n": 15,
+      "mrr": 1.0,
+      "hit_at_1": 1.0,
+      "hit_at_3": 1.0,
+      "n_relevant_cut": 0,
+      "n_with_distractor": 0,
+      "distractor_in_top3_rate": null
+    },
+    {
+      "condition": "weighted",
+      "case_type": "calm_target_charged_distractor",
+      "n": 15,
+      "mrr": 0.6944444444444444,
+      "hit_at_1": 0.4666666666666667,
+      "hit_at_3": 0.9333333333333333,
+      "n_relevant_cut": 0,
+      "n_with_distractor": 15,
+      "distractor_in_top3_rate": 0.5333333333333333
+    },
+    {
+      "condition": "weighted",
+      "case_type": "calm_target",
+      "n": 15,
+      "mrr": 0.9333333333333333,
+      "hit_at_1": 0.8666666666666667,
+      "hit_at_3": 1.0,
+      "n_relevant_cut": 0,
+      "n_with_distractor": 0,
+      "distractor_in_top3_rate": null
+    },
+    {
+      "condition": "similarity_only",
+      "case_type": "all",
+      "n": 45,
+      "mrr": 0.9777777777777777,
+      "hit_at_1": 0.9555555555555556,
+      "hit_at_3": 1.0,
+      "n_relevant_cut": 0,
+      "n_with_distractor": 15,
+      "distractor_in_top3_rate": 0.5333333333333333
+    },
+    {
+      "condition": "similarity_only",
+      "case_type": "charged_target",
+      "n": 15,
+      "mrr": 0.9666666666666667,
+      "hit_at_1": 0.9333333333333333,
+      "hit_at_3": 1.0,
+      "n_relevant_cut": 0,
+      "n_with_distractor": 0,
+      "distractor_in_top3_rate": null
+    },
+    {
+      "condition": "similarity_only",
+      "case_type": "calm_target_charged_distractor",
+      "n": 15,
+      "mrr": 0.9666666666666667,
+      "hit_at_1": 0.9333333333333333,
+      "hit_at_3": 1.0,
+      "n_relevant_cut": 0,
+      "n_with_distractor": 15,
+      "distractor_in_top3_rate": 0.5333333333333333
+    },
+    {
+      "condition": "similarity_only",
+      "case_type": "calm_target",
+      "n": 15,
+      "mrr": 1.0,
+      "hit_at_1": 1.0,
+      "hit_at_3": 1.0,
+      "n_relevant_cut": 0,
+      "n_with_distractor": 0,
+      "distractor_in_top3_rate": null
+    }
+  ],
+  "mrr_difference_weighted_minus_similarity_only": {
+    "mean_diff": -0.10185185185185186,
+    "ci_low": -0.17407407407407408,
+    "ci_high": -0.03703703703703704,
+    "n": 45,
+    "n_resamples": 10000,
+    "seed": 42,
+    "verdict": "hurts"
+  },
+  "mrr_difference_by_case_type": {
+    "charged_target": {
+      "mean_diff": 0.03333333333333333,
+      "ci_low": 0.0,
+      "ci_high": 0.1,
+      "n": 15,
+      "n_resamples": 10000,
+      "seed": 42,
+      "verdict_information_only": "no detectable difference"
+    },
+    "calm_target_charged_distractor": {
+      "mean_diff": -0.27222222222222225,
+      "ci_low": -0.41111111111111115,
+      "ci_high": -0.13333333333333333,
+      "n": 15,
+      "n_resamples": 10000,
+      "seed": 42,
+      "verdict_information_only": "hurts"
+    },
+    "calm_target": {
+      "mean_diff": -0.06666666666666667,
+      "ci_low": -0.16666666666666666,
+      "ci_high": 0.0,
+      "n": 15,
+      "n_resamples": 10000,
+      "seed": 42,
+      "verdict_information_only": "no detectable difference"
+    }
+  },
+  "guardrail_calm_target_hit_at_1": {
+    "n": 30,
+    "hit_at_1_similarity_only": 0.9666666666666667,
+    "hit_at_1_weighted": 0.6666666666666666,
+    "drop": 0.3,
+    "max_drop": 0.1,
+    "flagged": true
+  },
+  "queries_with_different_top1": [
+    {
+      "query_id": "u03_q1",
+      "user_id": "u03",
+      "case_type": "charged_target",
+      "query": "Honestly I'm scared I won't make it to payday this month.",
+      "relevant_fact_id": "u03_f1",
+      "top1_fact_id_similarity_only": "u03_f2",
+      "top1_fact_id_weighted": "u03_f1",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "strong"
+    },
+    {
+      "query_id": "u03_q2",
+      "user_id": "u03",
+      "case_type": "calm_target_charged_distractor",
+      "query": "Heading over to Mum and Dad's for our usual meal together tonight.",
+      "relevant_fact_id": "u03_f2",
+      "top1_fact_id_similarity_only": "u03_f2",
+      "top1_fact_id_weighted": "u03_f3",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "strong"
+    },
+    {
+      "query_id": "u04_q2",
+      "user_id": "u04",
+      "case_type": "calm_target_charged_distractor",
+      "query": "Did my usual bit of scales on the keyboard after dinner.",
+      "relevant_fact_id": "u04_f2",
+      "top1_fact_id_similarity_only": "u04_f2",
+      "top1_fact_id_weighted": "u04_f3",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "strong"
+    },
+    {
+      "query_id": "u06_q2",
+      "user_id": "u06",
+      "case_type": "calm_target_charged_distractor",
+      "query": "Might just take the train to that little village down the coast on Saturday and relax.",
+      "relevant_fact_id": "u06_f2",
+      "top1_fact_id_similarity_only": "u06_f2",
+      "top1_fact_id_weighted": "u06_f3",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "strong"
+    },
+    {
+      "query_id": "u07_q2",
+      "user_id": "u07",
+      "case_type": "calm_target_charged_distractor",
+      "query": "Moved a little of my wages into the rainy-day pot again.",
+      "relevant_fact_id": "u07_f2",
+      "top1_fact_id_similarity_only": "u07_f2",
+      "top1_fact_id_weighted": "u07_f3",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "strong"
+    },
+    {
+      "query_id": "u10_q2",
+      "user_id": "u10",
+      "case_type": "calm_target_charged_distractor",
+      "query": "The bunny's yearly vet visit went fine, totally healthy.",
+      "relevant_fact_id": "u10_f2",
+      "top1_fact_id_similarity_only": "u10_f2",
+      "top1_fact_id_weighted": "u10_f3",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "strong"
+    },
+    {
+      "query_id": "u12_q3",
+      "user_id": "u12",
+      "case_type": "calm_target",
+      "query": "My feathered buddy was copying the kettle's noise all morning.",
+      "relevant_fact_id": "u12_f4",
+      "top1_fact_id_similarity_only": "u12_f4",
+      "top1_fact_id_weighted": "u12_f5",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "mild"
+    },
+    {
+      "query_id": "u13_q2",
+      "user_id": "u13",
+      "case_type": "calm_target_charged_distractor",
+      "query": "My alarm goes off at five so I can be on the ward by six.",
+      "relevant_fact_id": "u13_f2",
+      "top1_fact_id_similarity_only": "u13_f2",
+      "top1_fact_id_weighted": "u13_f3",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "strong"
+    },
+    {
+      "query_id": "u13_q3",
+      "user_id": "u13",
+      "case_type": "calm_target",
+      "query": "I always carry notes and coins, I don't trust contactless.",
+      "relevant_fact_id": "u13_f4",
+      "top1_fact_id_similarity_only": "u13_f4",
+      "top1_fact_id_weighted": "u13_f1",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "strong"
+    },
+    {
+      "query_id": "u15_q2",
+      "user_id": "u15",
+      "case_type": "calm_target_charged_distractor",
+      "query": "Just reserved a pitch for the tent near the lake in August.",
+      "relevant_fact_id": "u15_f2",
+      "top1_fact_id_similarity_only": "u15_f2",
+      "top1_fact_id_weighted": "u15_f3",
+      "top1_intensity_similarity_only": "calm",
+      "top1_intensity_weighted": "strong"
+    }
+  ],
+  "torch_imported": false
+}
