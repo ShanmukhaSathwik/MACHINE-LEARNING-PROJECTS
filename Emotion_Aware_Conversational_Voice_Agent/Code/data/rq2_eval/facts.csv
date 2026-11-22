@@ -1,0 +1,76 @@
+user_id,fact_id,fact,intensity,topic
+u01,u01_f1,The user is devastated that their grandfather was just moved into hospice care.,strong,family
+u01,u01_f2,The user borrows textbooks from the campus library instead of buying them.,calm,study
+u01,u01_f3,The user is panicking because they might fail their organic chemistry course this term.,strong,study
+u01,u01_f4,The user collects vinyl records from secondhand shops.,calm,hobbies
+u01,u01_f5,The user is slightly annoyed that their friends keep cancelling plans at the last minute.,mild,friends
+u02,u02_f1,The user is furious that their manager took credit for their project in front of the whole team.,strong,work
+u02,u02_f2,The user feeds their goldfish every morning before work.,calm,pet
+u02,u02_f3,The user is scared because their dog has a lump the vet wants to test.,strong,pet
+u02,u02_f4,The user enjoys doing crossword puzzles on the weekend.,calm,hobbies
+u02,u02_f5,The user is somewhat nervous about a dentist appointment next week.,mild,plans
+u03,u03_f1,The user is deeply worried about money and does not know how they will cover rent.,strong,money
+u03,u03_f2,The user has dinner with their parents on the first Friday of each month.,calm,family
+u03,u03_f3,The user is heartbroken that their parents announced they are getting divorced.,strong,family
+u03,u03_f4,The user takes notes by hand rather than on a laptop.,calm,study
+u03,u03_f5,The user is mildly bored with their part-time job at a bookstore.,mild,work
+u04,u04_f1,The user is distraught because their cat stopped eating and needs surgery.,strong,pet
+u04,u04_f2,The user practises piano for a short while most evenings.,calm,hobbies
+u04,u04_f3,The user is mortified after freezing up during their first piano recital.,strong,hobbies
+u04,u04_f4,The user is considering repainting their bedroom a lighter colour.,calm,plans
+u04,u04_f5,The user is a bit jealous that a friend got into the program they wanted.,mild,friends
+u05,u05_f1,The user is anxious that their visa might not be renewed before their course ends.,strong,plans
+u05,u05_f2,The user cycles to the office on most days.,calm,work
+u05,u05_f3,The user dreads going to work because a coworker keeps bullying them.,strong,work
+u05,u05_f4,The user is reading a long fantasy series.,calm,hobbies
+u05,u05_f5,The user is a little concerned about how much they spend on takeaway food.,mild,money
+u06,u06_f1,The user feels betrayed because their best friend shared a secret with everyone.,strong,friends
+u06,u06_f2,The user is planning a quiet weekend visiting a nearby town.,calm,plans
+u06,u06_f3,The user is dreading a long family holiday they feel forced to go on.,strong,plans
+u06,u06_f4,The user walks their neighbour's dog when the neighbour is away.,calm,pet
+u06,u06_f5,The user is slightly behind on readings for their sociology class.,mild,study
+u07,u07_f1,The user is grieving because their old dog had to be put down last week.,strong,pet
+u07,u07_f2,The user puts a small amount into a savings account each payday.,calm,money
+u07,u07_f3,The user feels overwhelmed by debt and lies awake worrying about bills.,strong,money
+u07,u07_f4,The user grows tomatoes and herbs on their balcony.,calm,hobbies
+u07,u07_f5,The user is a bit tired of their long commute.,mild,work
+u08,u08_f1,The user is ashamed after being accused of plagiarism on an assignment.,strong,study
+u08,u08_f2,The user meets an old school friend for coffee now and then.,calm,friends
+u08,u08_f3,The user is lonely because their friends all moved to other cities.,strong,friends
+u08,u08_f4,The user intends to start volunteering at an animal shelter.,calm,plans
+u08,u08_f5,The user is a bit worried about the cost of textbooks this term.,mild,money
+u09,u09_f1,The user is terrified they will be laid off in the next round of cuts.,strong,work
+u09,u09_f2,The user bakes bread on Sunday mornings.,calm,hobbies
+u09,u09_f3,The user is embarrassed that their cake collapsed at a friend's party.,strong,hobbies
+u09,u09_f4,The user is expecting a visit from their brother who lives abroad.,calm,family
+u09,u09_f5,The user is somewhat unsure whether to renew their gym membership.,mild,plans
+u10,u10_f1,The user is scared because their mother is having heart surgery soon.,strong,family
+u10,u10_f2,The user takes their rabbit for a check-up once a year.,calm,pet
+u10,u10_f3,The user is panicking because their rabbit swallowed something and will not eat.,strong,pet
+u10,u10_f4,The user works from home on Fridays.,calm,work
+u10,u10_f5,The user is a little hurt that a friend forgot their birthday.,mild,friends
+u11,u11_f1,The user is ashamed that they had to borrow money from their parents again.,strong,money
+u11,u11_f2,The user is taking an online course in basic coding.,calm,study
+u11,u11_f3,The user is desperate because their thesis supervisor has stopped replying.,strong,study
+u11,u11_f4,The user plays chess online in the evenings.,calm,hobbies
+u11,u11_f5,The user is mildly irritated by a noisy open-plan office.,mild,work
+u12,u12_f1,The user is thrilled but overwhelmed about moving abroad for a new job.,strong,plans
+u12,u12_f2,The user helps their grandmother with her shopping on weekends.,calm,family
+u12,u12_f3,The user is angry that their brother keeps borrowing money and never pays it back.,strong,family
+u12,u12_f4,The user has a parrot that whistles along to the radio.,calm,pet
+u12,u12_f5,The user is a little nervous about an upcoming language exam.,mild,study
+u13,u13_f1,The user is hurt and angry that their friends planned a trip without them.,strong,friends
+u13,u13_f2,The user starts their shift at the hospital early in the morning.,calm,work
+u13,u13_f3,The user is exhausted and upset after a patient was rude to them during a shift.,strong,work
+u13,u13_f4,The user prefers paying with cash rather than cards.,calm,money
+u13,u13_f5,The user is a bit disappointed with how slowly their drawing is improving.,mild,hobbies
+u14,u14_f1,The user is overjoyed that their short film was selected for a student festival.,strong,hobbies
+u14,u14_f2,The user plays board games with a few friends on Thursday nights.,calm,friends
+u14,u14_f3,The user is worried sick about a friend who has stopped answering messages.,strong,friends
+u14,u14_f4,The user is reading about astronomy for an elective class.,calm,study
+u14,u14_f5,The user is slightly stressed about packing for a weekend away.,mild,plans
+u15,u15_f1,The user is frightened because their puppy was hit by a car and is at the emergency vet.,strong,pet
+u15,u15_f2,The user is booking a camping weekend for late summer.,calm,plans
+u15,u15_f3,The user is gutted that their wedding venue cancelled at the last minute.,strong,plans
+u15,u15_f4,The user is putting together a photo album for their family.,calm,family
+u15,u15_f5,The user is a little anxious about a performance review next week.,mild,work

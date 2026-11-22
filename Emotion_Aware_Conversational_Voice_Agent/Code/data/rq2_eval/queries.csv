@@ -1,0 +1,46 @@
+user_id,query_id,query,relevant_fact_id,case_type,distractor_fact_id
+u01,u01_q1,"They told us Grandpa only has weeks left, I can't handle it.",u01_f1,charged_target,
+u01,u01_q2,I picked up a couple of reading-list books from the uni stacks for free.,u01_f2,calm_target_charged_distractor,u01_f3
+u01,u01_q3,Found a rare jazz LP at the thrift store this weekend.,u01_f4,calm_target,
+u02,u02_q1,My boss presented my work as if it were theirs at the meeting and I'm livid.,u02_f1,charged_target,
+u02,u02_q2,Just gave the little fish their breakfast flakes.,u02_f2,calm_target_charged_distractor,u02_f3
+u02,u02_q3,"Stuck on seven across, the clue is driving me nuts.",u02_f4,calm_target,
+u03,u03_q1,Honestly I'm scared I won't make it to payday this month.,u03_f1,charged_target,
+u03,u03_q2,Heading over to Mum and Dad's for our usual meal together tonight.,u03_f2,calm_target_charged_distractor,u03_f3
+u03,u03_q3,I filled half a notebook with my pen during the lecture today.,u03_f4,calm_target,
+u04,u04_q1,"The vet says my kitty has to go under the knife, she hasn't touched her bowl in days.",u04_f1,charged_target,
+u04,u04_q2,Did my usual bit of scales on the keyboard after dinner.,u04_f2,calm_target_charged_distractor,u04_f3
+u04,u04_q3,Thinking a soft pale yellow might brighten up where I sleep.,u04_f4,calm_target,
+u05,u05_q1,If my residence permit doesn't come through I'll have to leave the country.,u05_f1,charged_target,
+u05,u05_q2,"Rode my bike in to the job this morning, nice weather for it.",u05_f2,calm_target_charged_distractor,u05_f3
+u05,u05_q3,I'm on book six of that dragon saga now.,u05_f4,calm_target,
+u06,u06_q1,I told her one private thing and now the entire class knows.,u06_f1,charged_target,
+u06,u06_q2,Might just take the train to that little village down the coast on Saturday and relax.,u06_f2,calm_target_charged_distractor,u06_f3
+u06,u06_q3,Took next door's pup around the block while they're travelling.,u06_f4,calm_target,
+u07,u07_q1,The house feels so empty without my good boy since we said goodbye.,u07_f1,charged_target,
+u07,u07_q2,Moved a little of my wages into the rainy-day pot again.,u07_f2,calm_target_charged_distractor,u07_f3
+u07,u07_q3,My basil and cherry plants outside the flat are doing great.,u07_f4,calm_target,
+u08,u08_q1,My professor thinks I copied my essay from the internet and I feel humiliated.,u08_f1,charged_target,
+u08,u08_q2,Caught up with a mate from secondary over a latte today.,u08_f2,calm_target_charged_distractor,u08_f3
+u08,u08_q3,I signed up to help out with the rescue cats and dogs on Sundays.,u08_f4,calm_target,
+u09,u09_q1,Rumour is they're firing another batch of people at my company and I'm sure it's me.,u09_f1,charged_target,
+u09,u09_q2,The loaf I made this morning came out with a lovely crust.,u09_f2,calm_target_charged_distractor,u09_f3
+u09,u09_q3,My sibling's flying in from overseas to stay with me for a bit.,u09_f4,calm_target,
+u10,u10_q1,Mum goes in for her bypass operation next week and I can't sleep.,u10_f1,charged_target,
+u10,u10_q2,"The bunny's yearly vet visit went fine, totally healthy.",u10_f2,calm_target_charged_distractor,u10_f3
+u10,u10_q3,"No office for me tomorrow, I'll be at my kitchen table all day.",u10_f4,calm_target,
+u11,u11_q1,"Had to ask Mum and Dad to bail me out financially, again, so embarrassing.",u11_f1,charged_target,
+u11,u11_q2,Finished the lesson on loops and variables in my programming class tonight.,u11_f2,calm_target_charged_distractor,u11_f3
+u11,u11_q3,Lost three games of blitz in a row before bed.,u11_f4,calm_target,
+u12,u12_q1,"I accepted the position overseas, it's exciting but my head is spinning.",u12_f1,charged_target,
+u12,u12_q2,Picked up groceries for Nan again this Saturday.,u12_f2,calm_target_charged_distractor,u12_f3
+u12,u12_q3,My feathered buddy was copying the kettle's noise all morning.,u12_f4,calm_target,
+u13,u13_q1,They all went away to the coast together and nobody even invited me.,u13_f1,charged_target,
+u13,u13_q2,My alarm goes off at five so I can be on the ward by six.,u13_f2,calm_target_charged_distractor,u13_f3
+u13,u13_q3,"I always carry notes and coins, I don't trust contactless.",u13_f4,calm_target,
+u14,u14_q1,"They're screening my movie at the campus showcase, I'm over the moon!",u14_f1,charged_target,
+u14,u14_q2,Bringing a new dice-and-cards box to play with the crew tomorrow evening.,u14_f2,calm_target_charged_distractor,u14_f3
+u14,u14_q3,"Learned tonight how far away the nearest star is, wild stuff.",u14_f4,calm_target,
+u15,u15_q1,"My little pup got struck crossing the road, she's in intensive care at the animal hospital.",u15_f1,charged_target,
+u15,u15_q2,Just reserved a pitch for the tent near the lake in August.,u15_f2,calm_target_charged_distractor,u15_f3
+u15,u15_q3,I've been sorting old prints of Grandma and the kids into a scrapbook.,u15_f4,calm_target,
