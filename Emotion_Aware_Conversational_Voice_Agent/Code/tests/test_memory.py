@@ -35,7 +35,9 @@ def mm(tmp_path):
 
 def test_config_block_matches_spec():
     conf = load_memory_config()
-    assert {k: conf["memory"][k] for k in CFG} == CFG
+    # The live config is similarity-only since RQ2 R2 (af7d65f); CFG keeps 0.7 / 0.3 so the scoring-formula tests
+    # exercise both terms with explicit weights.
+    assert {k: conf["memory"][k] for k in CFG} == {**CFG, "w_similarity": 1.0, "w_importance": 0.0}
     # Task D keys: backend chroma since step D4; min_similarity from D3b (choose_min_similarity.py)
     assert {k: v for k, v in conf["memory"].items() if k not in CFG} == {
         "backend": "chroma", "vector_store_dir": "vector_store", "min_similarity": 0.15}
