@@ -15,12 +15,19 @@
   - Real-data experiment: 12-turn scripted conversation, 1000 runs
   - Reactive switches 4.45±1.74 vs MoodManager 1.36±0.62
 - **Research poster** — presented Oct 6
+- **GPU demo build, steps 1–10 (code, 2026-11-11 → 11-13)** — `gpu/` device, SER, MoodManagerV2, safety, JSON memory, ASR, LLM, CSM voice, live agent, bench (f0c530b … 66688df); see "GPU demo build" below
+- **GPU sessions 1–2 (2026-11-12, 2026-11-13)** — T3 training + Whisper / Qwen / CSM on GPU (182d6f5); live agent end to end, CSM spoke 15/15 turns (41f5ccd)
+- **T1–T3 HuBERT fine-tune** — T1 RAVDESS + CREMA-D manifest (ed4ef2c), T2 script (b204e91), T3 run `gpu_24gb_20261112_1500`: val macro-F1 0.777, test macro-F1 CREMA-D 0.745 / RAVDESS 0.676; my_voice_v3 12/32, FAIL against the 22/32 rule → not approved for the demo (05eff07)
+- **Task B — JSON memory scaffold (2026-11-12)** — 521e061; now the fallback behind Task D
+- **Task D — RAG memory on Chroma (2026-11-19 → 11-22)** — D1–D5, `min_similarity` 0.15, `memory.backend: "chroma"` (fcd9e95)
 
 ---
 
 ## Build Sequence (what's next, in order)
 
 > P1–P9 = the nine design principles in the workflow doc, Section 0.6 (added 2026-11-05).
+>
+> **Next (2026-11-22):** retrain the emotion model on the student recordings → **F** (evaluation, including the RQ2 two-session test with `w_importance` 0 vs 0.3) → **A2.5** (shuffle-order placebo) → **H** (web frontend).
 
 ### A. Thin end-to-end agent — DONE (2026-10-31)
 Wire the minimum viable pipeline printed to the terminal:
@@ -40,7 +47,7 @@ Wire the minimum viable pipeline printed to the terminal:
 - **Confound**: the Gemini fallback chain (3.6-flash → 3.5-flash-lite → 3.1-flash-lite) can change model mid-conversation, so tone differences may partly come from the model. Every attempt is logged per turn; pin one model for the Task F evaluation
 - RAVDESS transcripts are lexically neutral ("Kids are talking by the door"), so reply content is uninformative; tone is the only signal in scripted runs
 
-### A2. Guardrails in the current agent (next — before B)
+### A2. Guardrails in the current agent (A2.1–A2.4 done; only A2.5 open)
 Design principles from the workflow doc, Section 0.6. All CPU, all on existing code.
 1. **Inspectable state** (P1) — DONE (2026-11-05): add `MoodManager.explain()`; every turn in the session JSONL logs probs, confidence, abstain flag, mood score, turns_above, mode, strategy, reason, exact system prompt, LLM model, TTS tags
    - Shipped: `explain()` one-line reason; JSONL adds `confidence`, `mood_params`, `reason`, `system_prompt` (null with `--no-llm`) and always-present placeholders `abstained` / `check_in` / `strategy` / `tts_tags`. Re-run matches Task A (MoodManager 1 switch on turn 7, reactive 4)
@@ -69,9 +76,9 @@ Design principles from the workflow doc, Section 0.6. All CPU, all on existing c
      - Audio check (`check_audio.py`): v2 ~13 dB louder than RAVDESS and louder/shorter than v1; on the top features all three emotions sit past RAVDESS angry → model learned 'loud = angry'; workflow Section 2 RMS normalization was never implemented
      - Pitch features drift up to 19 Hz vs the manifest (old Python 3.14 env); not in top 10
      - Loudness test (`test_loudness.py`): scaling each clip to RAVDESS speech RMS (−34.7 dBFS) drops v2 angry predictions 13 → 2 but accuracy stays 5/15 (errors move to happy); v1 drops 8/10 → 6/10. Conclusion: missing RMS normalization causes the angry bias, but XGBoost on the 39 features doesn't recognize emotion in my voice. Per-clip scaling also erases real loudness differences; fix belongs in Task C, not a separate XGBoost retrain
-3. **Code decides, LLM speaks** (P3): MoodManager outputs a strategy (VALIDATE / CALM / ENCOURAGE / NEUTRAL); `build_system_prompt(strategy, facts)` — drop `perceived_emotion` from the prompt. MoodManager v1 (single distress axis) can only give VALIDATE / NEUTRAL; MoodManager v2 (one EMA per class: sad→VALIDATE, angry→CALM, happy→ENCOURAGE) unlocks the other two
-4. **Crisis check** (P9): `safety.check_crisis(transcript)` right after ASR; on match skip the LLM, return a fixed safe response (988 in the US), no memory stored from that turn
-5. **Shuffle-order placebo** (P7): rerun `plot_mood_real.py` (1000 conversations) with turn order shuffled; compare MoodManager vs reactive, original vs shuffled; report either way
+3. **Code decides, LLM speaks** (P3) — DONE (2026-11-11, 7cd03f9; MoodManagerV2 with all 4 strategies in 1aff92f): MoodManager outputs a strategy (VALIDATE / CALM / ENCOURAGE / NEUTRAL); `build_system_prompt(strategy, facts)` — drop `perceived_emotion` from the prompt. MoodManager v1 (single distress axis) can only give VALIDATE / NEUTRAL; MoodManager v2 (one EMA per class: sad→VALIDATE, angry→CALM, happy→ENCOURAGE) unlocks the other two
+4. **Crisis check + consent** (P9) — DONE (2026-11-12, `scripts/safety.py`, 51842e0: consent record/revoke + crisis phrase override, 988 safe reply): `safety.check_crisis(transcript)` right after ASR; on match skip the LLM, return a fixed safe response (988 in the US), no memory stored from that turn
+5. **Shuffle-order placebo** (P7) — **open**: rerun `plot_mood_real.py` (1000 conversations) with turn order shuffled; compare MoodManager vs reactive, original vs shuffled; report either way
 
 ### C. Bi-LSTM + CNN classifiers (moved before B, 2026-11-07: A2.2 audio/loudness checks showed XGBoost doesn't transfer to my voice)
 - CNN on mel-spectrograms (3-class)
@@ -149,7 +156,10 @@ Sources: `session2_notes.txt`, `session2_terminal.txt`, `results/metrics/llm_dem
 - **Not run**: CSM `--speak` per strategy, crisis voice check, `bench_gpu.py`, room-noise silence gate
 - **Known issues**: live agent plays the CSM voice but does not save the wav; test memories (`shan_test`, `shan_demo`, `shan_noabstain`) may still be on the professor's machine
 
-### B. MemoryManager — JSON scaffold
+### B. MemoryManager — JSON scaffold — DONE (2026-11-12)
+- **Done in 521e061**: `scripts/memory_manager.py` (JSON, scored retrieval, forget / delete-all) + `scripts/fact_extractor.py` (user turns only)
+- **Superseded as default by D4** (`memory.backend: "chroma"`); the JSON backend is kept as the fallback
+- Original plan:
 - Conversation buffer (last N turns)
 - User-fact store (name, preferences) with emotion-gated write
 - JSON file backend — no vector DB yet
@@ -157,22 +167,26 @@ Sources: `session2_notes.txt`, `session2_terminal.txt`, `results/metrics/llm_dem
 - **Perspective boundary** (P5): `extract_fact()` sees only the user's transcript, never Gemini's reply; unit test: a fact invented in a reply is never stored
 - ABSTAIN turns don't raise `importance_score` (P2)
 
-### D. RAG upgrade (MemoryManager v2)
+### D. RAG upgrade (MemoryManager v2) — DONE (2026-11-20)
 - **D1 done (2026-11-19):** chromadb 1.5.9 + onnxruntime 1.32.0 in .venv312 (no pinned package changed). `scripts/check_embedder.py`: Chroma's DefaultEmbeddingFunction (all-MiniLM-L6-v2, ONNX, CPU) → 384-dim, cosine A–B 0.2991 vs A–C 0.0682, first call 10.986 s with the one-time 79.3 MB download (0.637 s with model cached), second call 0.411–0.462 s; torch not imported → PASS. `tests/test_embedder.py` added; test_embedder + test_memory + test_live_agent: 68 passed
 - **D2 done (2026-11-19):** `ChromaMemoryManager` next to the JSON `MemoryManager` in `scripts/memory_manager.py` (shared `BaseMemoryManager.delete_all_my_data`; `make_memory_manager` picks by `memory.backend`, still `"json"`; CLI `--backend json|chroma`). New config keys `backend`, `vector_store_dir` (`vector_store/`, already git-ignored), `min_similarity` (placeholder 0.0 until D3). Chroma: cosine collection "memories", every user fact scored, similarity < min_similarity dropped before scoring. Real MiniLM test: query "I'm stressed about Monday." → exam fact similarity 0.2991 (score 0.3594) ranks above pizza fact 0.0682 (score 0.1977). `tests/test_memory_chroma.py` 20 passed; with test_memory + test_fact_extractor + test_live_agent + test_embedder: 126 passed. Agent still uses JSON (wiring is D4)
 - **D3 done (2026-11-20):** labelled set `data/memory_eval/` (40 queries x 20 facts = 800 pairs; tune 13 positives / 387 negatives, test 10 / 390), labels approved before any similarity was computed; exact cosine scoring in `ChromaMemoryManager`. Rule fixed and committed first (f529829): `min_similarity` = lowest cutoff (0.00-1.00, step 0.01) with tune false-recall rate <= 0.10. `scripts/choose_min_similarity.py` → **min_similarity = 0.15** (tune FRR at 0.14 was 43/387 = 0.111). Tune: recall 0.8462 (11/13), FRR 0.0982 (38/387). Test: recall 1.0000 (10/10), FRR 0.1077 (42/390). Reported only (added in D4): queries with a negative fact among their top 3 and >= 0.15: tune 13/20 (0.65), test 16/20 (0.80). Outputs: `results/metrics/memory_pairs.csv`, `memory_threshold.csv`, `memory_threshold_summary.json`, `results/figures/memory_threshold.png`. `backend` still "json"
 - **D4 done (2026-11-20):** `memory.backend: "chroma"`. `live_agent_gpu.build_memory` (used by the live agent and `bench_gpu.build_bench_agent`, bench store inside its bench folder) loads the MiniLM embedder once at startup and prints backend + min_similarity; if chroma fails it warns and falls back to JSON. Every turn log line records `memory_backend` (chroma / json / json-fallback) and `min_similarity`. Prompt: remembered facts carry a guard ("use only if it is about what they just said, otherwise do not mention it at all"). Two-session demo (`fact_extractor.py --demo`), session-2 query sharing no content word with the stored fact: chroma recalled the exam fact (similarity 0.575, score 0.686); JSON recalled nothing. smoke_cpu, 3 scripted turns (temporary store): turn 3 paraphrase recalled the turn-1 fact (similarity 0.4301). Requirements: chromadb + deps in `gpu/requirements_gpu.txt`, 8 used packages pinned in requirements.txt, fsspec pin 2026.7.0; `pip check` clean. Full suite: 567 passed
-- Replace JSON fact store with Chroma/FAISS
-- MiniLM embeddings + emotion-weighted retrieval
-- Integrate into agent loop
-- `delete(memory_id)` wired to Chroma; unit test: a deleted fact is never retrieved again (P4)
-- Log similarity / importance / final score for every retrieved memory (P1)
+- **D5 done (2026-11-22):** no JSON memories exist at home (`data/memories.json` absent), so no migration was needed. The test memories on the professor's GPU machine (`shan_test`, `shan_demo`, `shan_noabstain`) are deleted in the next GPU session instead
+- [x] Replace JSON fact store with Chroma/FAISS → Chroma (D2 `ChromaMemoryManager`; default backend in D4)
+- [x] MiniLM embeddings + emotion-weighted retrieval → D1 (MiniLM ONNX embedder), D2 (score = w_similarity × similarity + w_importance × importance, importance from emotion intensity), D3 (`min_similarity` 0.15)
+- [x] Integrate into agent loop → D4 (`live_agent_gpu.build_memory`, also used by `bench_gpu`)
+- [x] `delete(memory_id)` wired to Chroma; unit test: a deleted fact is never retrieved again (P4) → D2 (`tests/test_memory_chroma.py::test_deleted_fact_never_retrieved_again_even_after_reopening`)
+- [x] Log similarity / importance / final score for every retrieved memory (P1) → D2 (same retrieval return keys as JSON) + D4 (turn log adds `memory_backend` and `min_similarity`)
 
-### E. TTS — CSM-1B on Colab
-- Google Colab notebook running Sesame CSM-1B
-- REST endpoint the agent calls for audio output
-- Tone-conditioned voice (map mood mode → speaker style)
+### E. TTS — CSM-1B on the professor's GPU machine (Colab dropped Nov 2026)
+- **Built**: `gpu/tts_gpu.py` running base CSM-1B with Expresso speaker ex02, one reference clip per strategy (`gpu/voice_refs.json`, step 8a); pyttsx3 fallback via `scripts/fallback_tts.py` (253cdec)
+- **Measured**: spoke 15/15 turns with CSM in GPU session 2 (after `sounddevice` was installed; see GPU session 2 above)
 - **No direct emotion → voice path** (P6): TTS tags come only from the MoodManager strategy, never the per-turn SER output; `voice/` does not import the emotion predictor
+- Open:
+  - [ ] Save the CSM wavs in the live agent (it plays them but does not save them)
+  - [ ] LoRA fine-tune CSM on Expresso (after the demo)
+  - [ ] Decide the demo voice host
 
 ### F. Evaluation & demo
 - End-to-end evaluation: emotion accuracy, response quality, mood stability
